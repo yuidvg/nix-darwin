@@ -28,15 +28,21 @@
     # Enable and configure git
     git = {
       enable = true;
-      userName = "yui";
-      userEmail = "yui@example.com";
+      userName = "Yui Nishimura";
+      userEmail = "nisshi.yui79@gmail.com";
       extraConfig = {
-        init.defaultBranch = "main";
+        init.defaultBranch = "master";
         pull.rebase = true;
+        filter.lfs = {
+          process = "git-lfs filter-process";
+          required = true;
+          clean = "git-lfs clean -- %f";
+          smudge = "git-lfs smudge -- %f";
+        };
       };
     };
 
-        # Enable and configure zsh
+    # Enable and configure zsh
     zsh = {
       enable = true;
       enableCompletion = true;
