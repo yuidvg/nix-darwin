@@ -5,9 +5,12 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     nix-darwin.url = "github:nix-darwin/nix-darwin/master";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+    # home manager
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = inputs@{ self, nix-darwin, nixpkgs }:
+  outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager }:
   let
     configuration = { pkgs, ... }: {
       # List packages installed in system profile. To search by name, run:
@@ -32,19 +35,28 @@
       # The platform the configuration will be used on.
       nixpkgs.hostPlatform = "aarch64-darwin";
 
-      # Set the primary user for user-specific settings.
-      # Replace "yui" with your actual username if it's different.
-      system.primaryUser = "yui";
-
-      # system settings
-      system.defaults.dock.autohide = true;
+      # Define the user for home-manager
+      users.users.yui = {
+        name = "yui";
+        home = "/Users/yui";
+        shell = pkgs.zsh;
+      };
     };
   in
   {
     # Build darwin flake using:
     # $ darwin-rebuild build --flake .#Yuis-MacBook-Pro
     darwinConfigurations."Yuis-MacBook-Pro" = nix-darwin.lib.darwinSystem {
-      modules = [ configuration ];
+      modules = [
+        configuration
+        home-manager.darwinModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.backupFileExtension = "backup";
+          home-manager.users.yui = ./home.nix;
+        }
+      ];
     };
   };
 }
