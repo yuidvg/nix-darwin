@@ -36,6 +36,10 @@
     # former node packages
     claude-code
     codex
+
+    # gui apps
+    hidden-bar
+    utm
   ];
 
   # Programs configuration
@@ -92,6 +96,8 @@
     };
 
     gh = { enable = true; };
+
+    vscode.enable = true;
   };
 
   # Environment variables
@@ -101,4 +107,9 @@
     PAGER = "less";
     LESS = "-R";
   };
+
+  #Settings
+  targets.darwin.defaults."com.apple.dock".autohide = true;
+  targets.darwin.defaults."com.apple.dock".orientation = "bottom";
+  targets.darwin.defaults.NSGlobalDomain.AppleShowAllExtensions = true;
 }

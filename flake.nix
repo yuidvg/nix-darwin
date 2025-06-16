@@ -33,9 +33,10 @@
         # The platform the configuration will be used on.
         nixpkgs.hostPlatform = "aarch64-darwin";
 
+        ## Darwin Configurations
         # Allow unfree packages
         nixpkgs.config.allowUnfreePredicate = pkg:
-          builtins.elem (lib.getName pkg) [ "claude-code" ];
+          builtins.elem (lib.getName pkg) [ "claude-code" "vscode" ];
 
         # Define the user for home-manager
         users.users.yui = {
@@ -43,6 +44,8 @@
           home = "/Users/yui";
           shell = pkgs.zsh;
         };
+
+        security.pam.services.sudo_local.touchIdAuth = true;
       };
     in {
       # Build darwin flake using:
