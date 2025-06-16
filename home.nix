@@ -19,8 +19,23 @@
   home.packages = with pkgs; [
     # nix tools
     nixfmt-classic
+
     # Development tools
-    hello
+    nodejs # Node.js runtime (was: node)
+    bun # Fast JavaScript runtime and package manager
+
+    # Media processing tools
+    ffmpeg # Video/audio processing (was: ffmpeg)
+    imagemagick # Image manipulation (was: imagemagick)
+    poppler # PDF utilities (was: poppler)
+
+    # System utilities
+    fdupes # Find duplicate files (was: fdupes)
+    yt-dlp # YouTube downloader (was: yt-dlp)
+
+    # former node packages
+    claude-code
+    codex
   ];
 
   # Programs configuration
@@ -43,22 +58,40 @@
     };
 
     # Enable and configure zsh
-    zsh = {
+    zsh = let gitPromptScript = ./script/git-prompt.sh;
+    in {
       enable = true;
       enableCompletion = true;
       autosuggestion.enable = true;
+      autosuggestion.strategy = [ "history" "completion" "match_prev_cmd" ];
       syntaxHighlighting.enable = true;
-      history = {
-        size = 10000;
-        save = 10000;
-      };
-      oh-my-zsh.enable = false;
+      autocd = true;
       shellAliases = {
         ll = "ls -l";
         la = "ls -la";
         lt = "tree";
+        remake = "make -j clean && make -j";
       };
+      initContent = let
+        initExtraBeforeCompInit = lib.mkOrder 550 ''
+          # Add completion to fpath
+          fpath=(/Users/yui/.docker/completions $fpath)
+        '';
+
+        initExtra = lib.mkOrder 1000 ''
+          # Source git prompt script
+          source ${gitPromptScript}
+          GIT_PS1_SHOWUPSTREAM="verbose"
+          precmd () { __git_ps1 "%F{cyan}%~%f%F{blue}" "%s %f" }
+
+          # ssh agent
+          ssh-add >/dev/null 2>/dev/null
+          ssh-add --apple-use-keychain ~/.ssh/github >/dev/null 2>/dev/null
+        '';
+      in lib.mkMerge [ initExtraBeforeCompInit initExtra ];
     };
+
+    gh = { enable = true; };
   };
 
   # Environment variables
