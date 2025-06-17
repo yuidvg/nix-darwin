@@ -41,7 +41,6 @@
     hidden-bar
     utm
     transmission_4
-    discord
   ];
 
   # Programs configuration

@@ -39,7 +39,7 @@
         ## Darwin Configurations
         # Allow unfree packages
         nixpkgs.config.allowUnfreePredicate = pkg:
-          builtins.elem (lib.getName pkg) [ "claude-code" "vscode" "discord" ];
+          builtins.elem (lib.getName pkg) [ "claude-code" "vscode" ];
 
         # Define the user for home-manager
         users.users.yui = {
