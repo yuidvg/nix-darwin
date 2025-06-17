@@ -112,4 +112,8 @@
   targets.darwin.defaults."com.apple.dock".autohide = true;
   targets.darwin.defaults."com.apple.dock".orientation = "bottom";
   targets.darwin.defaults.NSGlobalDomain.AppleShowAllExtensions = true;
+  targets.darwin.defaults."com.apple.finder" = {
+    FXPreferredViewStyle = "clmv";
+    _FXShowPosixPathInTitle = true;
+  };
 }

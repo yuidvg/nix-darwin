@@ -44,7 +44,10 @@
           home = "/Users/yui";
           shell = pkgs.zsh;
         };
-
+        # System defaults configuration
+        system.defaults = {
+          CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" = true;
+        };
         security.pam.services.sudo_local.touchIdAuth = true;
       };
     in {
