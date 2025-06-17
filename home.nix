@@ -1,5 +1,4 @@
-{ config, pkgs, lib, ... }:
-
+{ config, pkgs, lib, mac-app-util, ... }:
 {
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;

@@ -8,9 +8,12 @@
     # home manager
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
+    # mac app util
+    mac-app-util.url = "github:hraban/mac-app-util";
   };
 
-  outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager }:
+  outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager, mac-app-util }:
     let
       configuration = { pkgs, lib, ... }: {
         # List packages installed in system profile. To search by name, run:
@@ -46,7 +49,8 @@
         };
         # System defaults configuration
         system.defaults = {
-          CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" = true;
+          CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" =
+            true;
         };
         security.pam.services.sudo_local.touchIdAuth = true;
       };
@@ -61,7 +65,12 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "backup";
-            home-manager.users.yui = ./home.nix;
+            home-manager.users.yui = {
+              imports = [
+                ./home.nix
+                mac-app-util.homeManagerModules.default
+              ];
+            };
           }
         ];
       };
