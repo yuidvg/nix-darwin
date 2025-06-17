@@ -31,6 +31,7 @@
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
     yt-dlp # YouTube downloader (was: yt-dlp)
+    openvpn
 
     # former node packages
     claude-code
@@ -39,6 +40,8 @@
     # gui apps
     hidden-bar
     utm
+    transmission_4
+    discord
   ];
 
   # Programs configuration
@@ -98,6 +101,8 @@
 
     vscode.enable = true;
   };
+
+  services.ollama.enable = true;
 
   # Environment variables
   home.sessionVariables = {
