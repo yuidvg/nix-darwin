@@ -1,4 +1,30 @@
 { config, pkgs, lib, mac-app-util, ... }: {
+  nixpkgs.overlays = [
+    (final: prev: {
+      macs-fan-control = final.buildMacosApp rec {
+        pname = "macs-fan-control";
+        version = "1.5.18"; # 2024年6月時点のWebサイト情報より
+
+        src = final.fetchurl {
+          url = "https://crystalidea.com/downloads/macsfancontrol.zip";
+          # このハッシュはダミーです。後述の手順で正しい値に置き換えてください。
+          sha256 = "0000000000000000000000000000000000000000000000000000";
+        };
+
+        appName = "Macs Fan Control.app";
+
+        nativeBuildInputs = [ final.unzip ];
+
+        meta = with final.lib; {
+          description = "Control fans on Apple computers";
+          homepage = "https://crystalidea.com/macs-fan-control";
+          license = licenses.unfree; # 配布ライセンスが不明なため
+          platforms = platforms.darwin;
+        };
+      };
+    })
+  ];
+
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
@@ -45,6 +71,7 @@
     codex
 
     # gui apps
+    macs-fan-control
     hidden-bar
     utm
     transmission_4
