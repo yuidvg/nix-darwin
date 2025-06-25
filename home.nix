@@ -1,5 +1,4 @@
-{ config, pkgs, lib, mac-app-util, ... }:
-{
+{ config, pkgs, lib, mac-app-util, ... }: {
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
@@ -17,11 +16,19 @@
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
     # nix tools
-    nixfmt-classic
+    nixfmt-rfc-style
+    nil
 
     # Development tools
     nodejs # Node.js runtime (was: node)
     bun # Fast JavaScript runtime and package manager
+    # haskell-language-server
+    # ghc
+    # hlint
+    # cabal-install
+    # zlib
+    # haskellPackages.zlib
+    # pkg-config
 
     # Media processing tools
     ffmpeg # Video/audio processing (was: ffmpeg)
@@ -94,6 +101,12 @@
           ssh-add --apple-use-keychain ~/.ssh/github >/dev/null 2>/dev/null
         '';
       in lib.mkMerge [ initExtraBeforeCompInit initExtra ];
+    };
+
+    direnv = {
+      enable = true;
+      enableZshIntegration = true;
+      nix-direnv.enable = true;
     };
 
     gh = { enable = true; };
