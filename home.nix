@@ -1,4 +1,11 @@
-{ config, pkgs, lib, mac-app-util, ... }: {
+{
+  config,
+  pkgs,
+  lib,
+  mac-app-util,
+  ...
+}:
+{
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
@@ -70,38 +77,50 @@
     };
 
     # Enable and configure zsh
-    zsh = let gitPromptScript = ./script/git-prompt.sh;
-    in {
-      enable = true;
-      enableCompletion = true;
-      autosuggestion.enable = true;
-      autosuggestion.strategy = [ "history" "completion" "match_prev_cmd" ];
-      syntaxHighlighting.enable = true;
-      autocd = true;
-      shellAliases = {
-        ll = "ls -l";
-        la = "ls -la";
-        lt = "tree";
-        remake = "make -j clean && make -j";
+    zsh =
+      let
+        gitPromptScript = ./script/git-prompt.sh;
+      in
+      {
+        enable = true;
+        enableCompletion = true;
+        autosuggestion.enable = true;
+        autosuggestion.strategy = [
+          "history"
+          "completion"
+          "match_prev_cmd"
+        ];
+        syntaxHighlighting.enable = true;
+        autocd = true;
+        shellAliases = {
+          ll = "ls -l";
+          la = "ls -la";
+          lt = "tree";
+          remake = "make -j clean && make -j";
+        };
+        initContent =
+          let
+            initExtraBeforeCompInit = lib.mkOrder 550 ''
+              # Add completion to fpath
+              fpath=(/Users/yui/.docker/completions $fpath)
+            '';
+
+            initExtra = lib.mkOrder 1000 ''
+              # Source git prompt script
+              source ${gitPromptScript}
+              GIT_PS1_SHOWUPSTREAM="verbose"
+              precmd () { __git_ps1 "%F{cyan}%~%f%F{blue}" "%s %f" }
+
+              # ssh agent
+              ssh-add >/dev/null 2>/dev/null
+              ssh-add --apple-use-keychain ~/.ssh/github >/dev/null 2>/dev/null
+            '';
+          in
+          lib.mkMerge [
+            initExtraBeforeCompInit
+            initExtra
+          ];
       };
-      initContent = let
-        initExtraBeforeCompInit = lib.mkOrder 550 ''
-          # Add completion to fpath
-          fpath=(/Users/yui/.docker/completions $fpath)
-        '';
-
-        initExtra = lib.mkOrder 1000 ''
-          # Source git prompt script
-          source ${gitPromptScript}
-          GIT_PS1_SHOWUPSTREAM="verbose"
-          precmd () { __git_ps1 "%F{cyan}%~%f%F{blue}" "%s %f" }
-
-          # ssh agent
-          ssh-add >/dev/null 2>/dev/null
-          ssh-add --apple-use-keychain ~/.ssh/github >/dev/null 2>/dev/null
-        '';
-      in lib.mkMerge [ initExtraBeforeCompInit initExtra ];
-    };
 
     direnv = {
       enable = true;
@@ -109,7 +128,9 @@
       nix-direnv.enable = true;
     };
 
-    gh = { enable = true; };
+    gh = {
+      enable = true;
+    };
 
     vscode.enable = true;
   };
