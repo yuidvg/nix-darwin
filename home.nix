@@ -139,6 +139,8 @@
 
   # Environment variables
   home.sessionVariables = {
+    MANPATH = ":/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/share/man";
+    SHELL = "zsh";
     EDITOR = "nvim";
     VISUAL = "nvim";
     PAGER = "less";
