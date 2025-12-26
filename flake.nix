@@ -74,7 +74,6 @@
             pkg:
             builtins.elem (lib.getName pkg) [
               "claude-code"
-              "vscode"
             ];
 
           # Define the user for home-manager
@@ -83,11 +82,21 @@
             home = "/Users/yui";
             shell = pkgs.zsh;
           };
+          # Set primary user for homebrew and other user-specific options
+          system.primaryUser = "yui";
           # System defaults configuration
           system.defaults = {
             CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" = true;
           };
           security.pam.services.sudo_local.touchIdAuth = true;
+
+          # Homebrew configuration
+          homebrew = {
+            enable = true;
+            casks = [
+              "blackhole-2ch"
+            ];
+          };
         };
     in
     {

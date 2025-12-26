@@ -26,6 +26,8 @@
     nixfmt-rfc-style
     nil
 
+    nixos-generators
+
     # Development tools
     nodejs # Node.js runtime (was: node)
     bun # Fast JavaScript runtime and package manager
@@ -41,6 +43,7 @@
     ffmpeg # Video/audio processing (was: ffmpeg)
     imagemagick # Image manipulation (was: imagemagick)
     poppler # PDF utilities (was: poppler)
+    python313Packages.markitdown
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
@@ -55,6 +58,7 @@
     hidden-bar
     utm
     transmission_4
+
   ];
 
   # Programs configuration
@@ -131,8 +135,6 @@
     gh = {
       enable = true;
     };
-
-    vscode.enable = true;
   };
 
   services.ollama.enable = true;
@@ -146,6 +148,9 @@
     PAGER = "less";
     LESS = "-R";
   };
+  home.sessionPath = [
+    "${config.home.homeDirectory}/.local/bin"
+  ];
 
   #Settings
   targets.darwin.defaults."com.apple.dock".autohide = true;
