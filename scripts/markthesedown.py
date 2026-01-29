@@ -46,7 +46,8 @@ def main():
 
             # セキュリティ: パストラバーサル対策
             clean_name = os.path.normpath(member.name)
-            if clean_name.startswith("..") or os.path.isabs(clean_name):
+            basename = os.path.basename(clean_name)
+            if clean_name.startswith("..") or os.path.isabs(clean_name) or basename.startswith("._") or basename == ".DS_Store":
                 continue
 
             # 一時ファイルとして書き出し
