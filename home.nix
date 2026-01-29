@@ -52,6 +52,26 @@ let
   '';
 in
 {
+  # ========================================
+  # SOPS: Secrets Management
+  # ========================================
+  sops = {
+    # Age 秘密鍵のパス (手動で設置済み)
+    age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
+
+    # 暗号化された secrets ファイル
+    defaultSopsFile = ./secrets.yaml;
+
+    # 復号されたシークレットの定義
+    secrets = {
+      openrouter_api_key = { };
+    };
+  };
+
+  # sops-nix launchd service needs PATH to find getconf
+  launchd.agents.sops-nix.config.EnvironmentVariables.PATH =
+    lib.mkForce "/usr/bin:/bin:/usr/sbin:/sbin";
+
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
@@ -168,6 +188,11 @@ in
               # ssh agent
               ssh-add >/dev/null 2>/dev/null
               ssh-add --apple-use-keychain ~/.ssh/github >/dev/null 2>/dev/null
+
+              # Load secrets from sops-nix (Layer 2: Wiring)
+              # File -> Environment Variable conversion
+              [[ -r "${config.sops.secrets.openrouter_api_key.path}" ]] && \
+                export OPENROUTER_API_KEY="$(cat ${config.sops.secrets.openrouter_api_key.path})"
             '';
           in
           lib.mkMerge [

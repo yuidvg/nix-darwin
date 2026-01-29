@@ -11,6 +11,10 @@
 
     # mac app util
     mac-app-util.url = "github:hraban/mac-app-util";
+
+    # sops-nix for secrets management
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -20,6 +24,7 @@
       nixpkgs,
       home-manager,
       mac-app-util,
+      sops-nix,
     }:
     let
       configuration =
@@ -115,6 +120,7 @@
               imports = [
                 ./home.nix
                 mac-app-util.homeManagerModules.default
+                sops-nix.homeManagerModules.sops
               ];
             };
           }
