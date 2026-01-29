@@ -1,8 +1,7 @@
-#!/usr/bin/env nix-shell
-#!nix-shell -i python3 -p python313 python313Packages.markitdown
-
+#!/usr/bin/env python3
 # ==============================================================================
-# MarkItDown Filter (Functional/Unix-compliant Refactoring)
+# MarkItDown Filter - Robust Implementation (Powered by Joblib/Loky)
+# Unix Filter: stdin (tar) -> stdout (tar)
 # ==============================================================================
 
 import sys
@@ -13,184 +12,269 @@ import io
 import shutil
 import logging
 import signal
-from concurrent.futures import ThreadPoolExecutor
+import gc
+from pathlib import Path
+from dataclasses import dataclass
+from typing import IO, Optional
+
+# Joblib / Loky for robust process management
+from joblib import Parallel, delayed, parallel_backend
 
 # Suppress library noise
 logging.getLogger("pdfminer").setLevel(logging.ERROR)
-logging.getLogger("openpyxl").setLevel(logging.ERROR)
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
-def is_junk_file(path: str) -> bool:
-    """
-    Predicate: Returns True if the file matches junk patterns (metadata, etc).
-    """
-    basename = os.path.basename(path)
-    return basename.startswith("._") or basename == ".DS_Store"
+# ==============================================================================
+# Domain Types (Immutable Data)
+# ==============================================================================
 
-def extract_member(tar: tarfile.TarFile, member: tarfile.TarInfo, dest_dir: str):
+@dataclass(frozen=True)
+class FileTask:
+    path: Path
+    original_name: str
+    mtime: float
+
+@dataclass(frozen=True)
+class ConvertSuccess:
+    original_name: str
+    content_path: Path
+    mtime: float
+
+@dataclass(frozen=True)
+class ConvertSkipped:
+    original_name: str
+    reason: str
+
+@dataclass(frozen=True)
+class ConvertFailed:
+    original_name: str
+    error: str
+
+ConvertResult = ConvertSuccess | ConvertSkipped | ConvertFailed
+
+# ==============================================================================
+# Pure Helper Functions & Worker Logic
+# ==============================================================================
+
+JUNK_PATTERNS = frozenset({".DS_Store"})
+JUNK_PREFIXES = ("._",)
+SKIP_EXTENSIONS = frozenset({".mov", ".mp4", ".mp3", ".wav", ".m4a"})
+
+def is_valid_member(name: str) -> bool:
+    base = os.path.basename(name)
+    _, ext = os.path.splitext(base)
+    return (
+        not base.startswith(JUNK_PREFIXES) and
+        base not in JUNK_PATTERNS and
+        ext.lower() not in SKIP_EXTENSIONS and
+        not name.startswith("..") and
+        not os.path.isabs(name)
+    )
+
+def md_output_name(original: str) -> str:
+    base, _ = os.path.splitext(original)
+    return base + ".md"
+
+# Worker-side initialization is handled automatically by Loky if needed,
+# but we'll use a functional approach where we instantiate clients purely.
+
+def convert_task_isolated(task: FileTask) -> ConvertResult:
     """
-    Action: Extracts a single member to a temporary file.
-    Returns the task tuple (temp_path, original_mtime, original_name) or None on failure.
+    Executed in a separate process.
+    Self-contained, minimal state.
     """
     try:
-        clean_name = os.path.normpath(member.name)
-        if clean_name.startswith("..") or os.path.isabs(clean_name):
-            return None
-
-        temp_path = os.path.join(dest_dir, clean_name)
-        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-
-        source = tar.extractfile(member)
-        if not source:
-            return None
-
-        with open(temp_path, 'wb') as dest:
-            shutil.copyfileobj(source, dest)
-
-        return (temp_path, member.mtime, member.name)
-    except Exception as e:
-        sys.stderr.write(f"[Extract Failed] {member.name}: {e}\n")
-        return None
-
-def source_stream(tar: tarfile.TarFile, dest_dir: str):
-    """
-    Generator: Yields extraction tasks from the tar stream.
-    Acts as the 'Source' of the pipeline.
-    """
-    for member in tar:
-        if not member.isfile():
-            continue
-        if is_junk_file(member.name):
-            continue
-
-        task = extract_member(tar, member, dest_dir)
-        if task:
-            yield task
-
-def transform_content(args) -> tuple:
-    """
-    Map Function: Pure transformation of file content (Disk -> Memory).
-    Input: (path, mtime, name)
-    Output: Result(path, content_bytes, mtime) | Error
-    """
-    temp_path, mtime, name = args
-    try:
-        # Import inside worker to ensure clean state or lazy load
+        # Re-import inside worker to ensure clean state
+        import os
         from markitdown import MarkItDown
+        from openai import OpenAI
+        import netrc
 
-        # Helper: Get credential from Env or Netrc (The Unix Way)
-        def get_auth(env_key, host):
-            # 1. Environment Variable (Process-local context)
-            if os.environ.get(env_key):
-                return os.environ.get(env_key)
-            # 2. Netrc (User-global configuration, chmod 600)
+        # 1. Resolve Auth (Stateless)
+        def get_auth(env_key: str, host: str) -> Optional[str]:
+            if (val := os.environ.get(env_key)): return val
             try:
-                import netrc
-                secrets = netrc.netrc()
-                auth = secrets.authenticators(host)
-                if auth:
-                    return auth[2] # password field
-            except (ImportError, FileNotFoundError, netrc.NetrcParseError):
-                pass
-            return None
+                auth = netrc.netrc().authenticators(host)
+                return auth[2] if auth else None
+            except Exception:
+                return None
 
-        # Initialize LLM client
         llm_client = None
         llm_model = None
 
         openrouter_key = get_auth("OPENROUTER_API_KEY", "openrouter.ai")
-        openai_key = get_auth("OPENAI_API_KEY", "api.openai.com")
-
         if openrouter_key:
-            try:
-                from openai import OpenAI
-                llm_client = OpenAI(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=openrouter_key,
-                )
+             try:
+                llm_client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_key)
                 llm_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
-            except ImportError:
-                pass
-        elif openai_key:
-            try:
-                from openai import OpenAI
-                llm_client = OpenAI(api_key=openai_key)
-                llm_model = "gpt-4o"
-            except ImportError:
-                pass
+             except: pass
 
-        md = MarkItDown(llm_client=llm_client, llm_model=llm_model)
+        if not llm_client:
+            openai_key = get_auth("OPENAI_API_KEY", "api.openai.com")
+            if openai_key:
+                try:
+                    llm_client = OpenAI(api_key=openai_key)
+                    llm_model = "gpt-4o"
+                except: pass
 
-        result = md.convert(temp_path)
+        # 2. Setup Unix Timeout (Pure Signal Approach)
+        # import signal # Already imported at the top level, no need to re-import here.
 
-        if result.text_content:
-            return (name, result.text_content.encode('utf-8'), mtime)
-        return (name, None, mtime) # No text content
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Conversion timed out")
+
+        # Set alarm for 180 seconds (3 minutes per file)
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(180)
+
+        try:
+            # 3. Perform Conversion
+            md = MarkItDown(llm_client=llm_client, llm_model=llm_model)
+            result = md.convert(str(task.path))
+
+            # 4. Write output to disk
+            if result.text_content and result.text_content.strip():
+                output_path = task.path.with_suffix(".md.tmp")
+                output_path.write_bytes(result.text_content.encode('utf-8'))
+                return ConvertSuccess(task.original_name, output_path, task.mtime)
+
+            return ConvertSkipped(task.original_name, "No convertible text content")
+
+        finally:
+            # Disable alarm immediately
+            signal.alarm(0)
+
+    except TimeoutError:
+        return ConvertFailed(task.original_name, "Timeout (180s)")
 
     except Exception as e:
-        # Return error as value (Result pattern)
-        return (name, e, mtime)
+        # Capture trace for debugging if needed, but return clean error
+        msg = str(e).split('\n')[0][:200]
+        return ConvertFailed(task.original_name, f"{type(e).__name__}: {msg}")
 
-def sink_stream(output_tar: tarfile.TarFile, results):
-    """
-    Sink: Consumes results and writes to output tar stream.
-    """
-    for name, content_or_error, mtime in results:
-        if isinstance(content_or_error, Exception):
-            sys.stderr.write(f"[Convert Failed] {name}: {content_or_error}\n")
-            continue
+# ==============================================================================
+# Pipeline Phases
+# ==============================================================================
 
-        if content_or_error is None:
-            sys.stderr.write(f"[Skip] {name}: No convertable text content.\n")
-            continue
+def phase_extract(input_stream: IO[bytes], work_dir: Path) -> list[FileTask]:
+    sys.stderr.write("[Phase 1] Extracting archive...\n")
+    tasks = []
+    with tarfile.open(fileobj=input_stream, mode='r|*') as tar:
+        for member in tar:
+            if not member.isfile() or not is_valid_member(member.name): continue
+            try:
+                dest_path = work_dir / os.path.normpath(member.name)
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                source = tar.extractfile(member)
+                if source:
+                    dest_path.write_bytes(source.read())
+                    tasks.append(FileTask(dest_path, member.name, member.mtime))
+            except Exception as e:
+                sys.stderr.write(f"[Extract Error] {member.name}: {e}\n")
+    sys.stderr.write(f"[Phase 1] Extracted {len(tasks)} files.\n")
+    return tasks
 
-        md_bytes = content_or_error
-        base, _ = os.path.splitext(name)
-        new_name = base + ".md"
+def phase_transform(tasks: list[FileTask]) -> list[ConvertResult]:
+    # Determine optimal worker count (keep some breathing room for system)
+    cpu_count = os.cpu_count() or 1
+    # Limit parallelism to avoid 37GB RAM usage if files are huge
+    # 8-12 workers is usually the sweet spot for IO/Network bound tasks like this
+    n_jobs = min(cpu_count, 12)
 
-        info = tarfile.TarInfo(name=new_name)
-        info.size = len(md_bytes)
-        info.mtime = mtime
+    sys.stderr.write(f"[Phase 2] Converting {len(tasks)} files with {n_jobs} workers uses Joblib...\n")
 
-        output_tar.addfile(info, io.BytesIO(md_bytes))
-        sys.stderr.write(f"x {new_name}\n")
+    results: list[ConvertResult] = []
+    total = len(tasks)
+
+    # Use 'loky' backend for robust process management (handles crashes/hangs)
+    # batch_size='auto' helps reduce overhead.
+    try:
+        with parallel_backend('loky', n_jobs=n_jobs):
+            # return_as='generator' allows us to stream results and show progress!
+            # timeout is available in recent joblib, but standardized via iterator here.
+
+            generator = Parallel(return_as='generator')(
+                delayed(convert_task_isolated)(task) for task in tasks
+            )
+
+            completed = 0
+            for result in generator:
+                results.append(result)
+                completed += 1
+
+                # Show progress with last processed file name (truncated)
+                status = "OK" if isinstance(result, ConvertSuccess) else ("SKIP" if isinstance(result, ConvertSkipped) else "ERR")
+                fname = result.original_name
+                if len(fname) > 30: fname = fname[:13] + "..." + fname[-14:]
+
+                sys.stderr.write(f"\r[Phase 2] {completed}/{total} | {status} | {fname}                    ")
+                sys.stderr.flush()
+
+                # Explicit GC
+                if completed % 100 == 0:
+                    gc.collect()
+
+    except Exception as e:
+        sys.stderr.write(f"\n[Parallel Error] {e}\n")
+        # Joblib usually raises only after everything is stopped,
+        # but we might have partial results in 'results' list if we consumed generator
+        pass
+
+    sys.stderr.write(f"\n[Phase 2] Completed {len(results)} conversions.\n")
+    results.sort(key=lambda r: r.original_name)
+    return results
+
+def phase_emit(results: list[ConvertResult], output_stream: IO[bytes], work_dir: Path):
+    sys.stderr.write("[Phase 3] Building output archive...\n")
+    buffer_path = work_dir / "output.tar"
+
+    with tarfile.open(buffer_path, mode='w') as tar:
+        for res in results:
+            if isinstance(res, ConvertSuccess):
+                try:
+                    info = tar.gettarinfo(name=str(res.content_path), arcname=md_output_name(res.original_name))
+                    info.mtime = res.mtime
+                    with open(res.content_path, 'rb') as f:
+                        tar.addfile(info, f)
+                    sys.stderr.write(f"x {md_output_name(res.original_name)}\n")
+                except Exception as e:
+                    sys.stderr.write(f"[Pack Error] {res.original_name}: {e}\n")
+            elif isinstance(res, ConvertSkipped):
+                sys.stderr.write(f"[Skip] {res.original_name}: {res.reason}\n")
+            elif isinstance(res, ConvertFailed):
+                sys.stderr.write(f"[Failed] {res.original_name}: {res.error}\n")
+
+    size = buffer_path.stat().st_size
+    sys.stderr.write(f"[Phase 3] Streaming {size} bytes to stdout...\n")
+
+    with open(buffer_path, 'rb') as f:
+        shutil.copyfileobj(f, output_stream)
+    output_stream.flush()
+    sys.stderr.write("[Done]\n")
+
+def run_pipeline(input_stream: IO[bytes], output_stream: IO[bytes]):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        work_dir = Path(temp_dir)
+        tasks = phase_extract(input_stream, work_dir)
+        results = phase_transform(tasks)
+        phase_emit(results, output_stream, work_dir)
 
 def main():
-    # Unix Principle: Handle SIGPIPE gracefully for pipeline usage
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
-
-    # Configuration: Parallelism
-    max_workers = (os.cpu_count() or 1) * 2
-
     try:
-        # IO Monad-ish Wrapper
-        input_tar = tarfile.open(fileobj=sys.stdin.buffer, mode='r|*')
-        output_tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w|')
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Build the Pipeline
-            # 1. Source: Generator of extracted files
-            tasks = source_stream(input_tar, temp_dir)
-
-            # 2. Map: Parallel transformation
-            # ThreadPoolExecutor.map is lazy-ish but preserves order.
-            # It consumes the 'tasks' generator (which triggers extraction)
-            # and yields results as they complete (in order).
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                results = executor.map(transform_content, tasks)
-
-                # 3. Sink: Write results
-                sink_stream(output_tar, results)
-
-        input_tar.close()
-        output_tar.close()
-
+        run_pipeline(sys.stdin.buffer, sys.stdout.buffer)
+        return 0
     except BrokenPipeError:
-        # Standard Unix behavior: exit silently
-        sys.stderr.close()
-        sys.exit(0)
+        return 0
+    except KeyboardInterrupt:
+        sys.stderr.write("\n[Interrupted]\n")
+        return 130
     except Exception as e:
-        sys.stderr.write(f"Critical Error: {e}\n")
-        sys.exit(1)
+        import traceback
+        sys.stderr.write(f"[Critical Error] {e}\n")
+        traceback.print_exc(file=sys.stderr)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

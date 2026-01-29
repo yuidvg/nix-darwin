@@ -19,6 +19,7 @@ let
     ps.requests
     ps.pandas
     ps.beautifulsoup4
+    ps.joblib
   ]);
 
   # 2. Pythonファイルの中身を読み込んで、実行可能なスクリプトとしてパッケージ化
@@ -49,6 +50,11 @@ let
   download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
     #!${webScrapingPythonEnv}/bin/python
     ${builtins.readFile ./scripts/download-slack-channel-files.py}
+  '';
+
+  flatten-dir = pkgs.writeScriptBin "flatten-dir" ''
+    #!${pkgs.python313}/bin/python
+    ${builtins.readFile ./scripts/flatten-dir.py}
   '';
 in
 {
@@ -114,6 +120,7 @@ in
     urls-under
     urls2contents
     download-slack-channel-files
+    flatten-dir
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)

@@ -1,3 +1,4 @@
 .DS_Store
 /result
 secrets.yaml.plain
+*.pyc
