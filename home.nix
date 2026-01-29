@@ -10,6 +10,15 @@ let
   #    ※ python313Packages があるなら明示的に python313 を使うのが安全です
   markthesedownPythonEnv = pkgs.python313.withPackages (ps: [
     ps.markitdown
+    ps.openai
+    ps.openpyxl
+    ps.python-pptx
+    ps.youtube-transcript-api
+    ps.speechrecognition
+    ps.pydub
+    ps.requests
+    ps.pandas
+    ps.beautifulsoup4
   ]);
 
   # 2. Pythonファイルの中身を読み込んで、実行可能なスクリプトとしてパッケージ化

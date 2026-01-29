@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Suppress library noise
 logging.getLogger("pdfminer").setLevel(logging.ERROR)
+logging.getLogger("openpyxl").setLevel(logging.ERROR)
 
 def is_junk_file(path: str) -> bool:
     """
@@ -75,7 +76,49 @@ def transform_content(args) -> tuple:
     try:
         # Import inside worker to ensure clean state or lazy load
         from markitdown import MarkItDown
-        md = MarkItDown()
+
+        # Helper: Get credential from Env or Netrc (The Unix Way)
+        def get_auth(env_key, host):
+            # 1. Environment Variable (Process-local context)
+            if os.environ.get(env_key):
+                return os.environ.get(env_key)
+            # 2. Netrc (User-global configuration, chmod 600)
+            try:
+                import netrc
+                secrets = netrc.netrc()
+                auth = secrets.authenticators(host)
+                if auth:
+                    return auth[2] # password field
+            except (ImportError, FileNotFoundError, netrc.NetrcParseError):
+                pass
+            return None
+
+        # Initialize LLM client
+        llm_client = None
+        llm_model = None
+
+        openrouter_key = get_auth("OPENROUTER_API_KEY", "openrouter.ai")
+        openai_key = get_auth("OPENAI_API_KEY", "api.openai.com")
+
+        if openrouter_key:
+            try:
+                from openai import OpenAI
+                llm_client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=openrouter_key,
+                )
+                llm_model = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+            except ImportError:
+                pass
+        elif openai_key:
+            try:
+                from openai import OpenAI
+                llm_client = OpenAI(api_key=openai_key)
+                llm_model = "gpt-4o"
+            except ImportError:
+                pass
+
+        md = MarkItDown(llm_client=llm_client, llm_model=llm_model)
 
         result = md.convert(temp_path)
 
