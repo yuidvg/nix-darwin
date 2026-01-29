@@ -2,8 +2,7 @@
 #!nix-shell -i python3 -p python313 python313Packages.markitdown
 
 # ==============================================================================
-# MarkItDown Filter (Parallel Version)
-# Usage: tar -cf - ./docs | markthesedown | tar -x -C ./output
+# MarkItDown Filter (Functional/Unix-compliant Refactoring)
 # ==============================================================================
 
 import sys
@@ -12,112 +11,140 @@ import tarfile
 import tempfile
 import io
 import shutil
-import concurrent.futures
+import logging
+import signal
+from concurrent.futures import ThreadPoolExecutor
 
-# nix-shellにより確実にインポート可能
-try:
-    from markitdown import MarkItDown
-except ImportError:
-    sys.stderr.write("Error: 'markitdown' not found. Ensure you are running with nix-shell.\n")
-    sys.exit(1)
+# Suppress library noise
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
-def convert_task(args):
+def is_junk_file(path: str) -> bool:
     """
-    並列実行される個別の変換タスク
+    Predicate: Returns True if the file matches junk patterns (metadata, etc).
     """
-    temp_path, original_mtime, rel_path = args
+    basename = os.path.basename(path)
+    return basename.startswith("._") or basename == ".DS_Store"
+
+def extract_member(tar: tarfile.TarFile, member: tarfile.TarInfo, dest_dir: str):
+    """
+    Action: Extracts a single member to a temporary file.
+    Returns the task tuple (temp_path, original_mtime, original_name) or None on failure.
+    """
     try:
-        # スレッドセーフ性を確保するため、タスクごとにインスタンス化を試みる
-        # (コストが高い場合はグローバルでの共有を検討するが、安定性重視)
+        clean_name = os.path.normpath(member.name)
+        if clean_name.startswith("..") or os.path.isabs(clean_name):
+            return None
+
+        temp_path = os.path.join(dest_dir, clean_name)
+        os.makedirs(os.path.dirname(temp_path), exist_ok=True)
+
+        source = tar.extractfile(member)
+        if not source:
+            return None
+
+        with open(temp_path, 'wb') as dest:
+            shutil.copyfileobj(source, dest)
+
+        return (temp_path, member.mtime, member.name)
+    except Exception as e:
+        sys.stderr.write(f"[Extract Failed] {member.name}: {e}\n")
+        return None
+
+def source_stream(tar: tarfile.TarFile, dest_dir: str):
+    """
+    Generator: Yields extraction tasks from the tar stream.
+    Acts as the 'Source' of the pipeline.
+    """
+    for member in tar:
+        if not member.isfile():
+            continue
+        if is_junk_file(member.name):
+            continue
+
+        task = extract_member(tar, member, dest_dir)
+        if task:
+            yield task
+
+def transform_content(args) -> tuple:
+    """
+    Map Function: Pure transformation of file content (Disk -> Memory).
+    Input: (path, mtime, name)
+    Output: Result(path, content_bytes, mtime) | Error
+    """
+    temp_path, mtime, name = args
+    try:
+        # Import inside worker to ensure clean state or lazy load
+        from markitdown import MarkItDown
         md = MarkItDown()
+
         result = md.convert(temp_path)
 
         if result.text_content:
-            return (rel_path, result.text_content.encode('utf-8'), original_mtime, None)
-        else:
-            return (rel_path, None, original_mtime, "No text content generated")
+            return (name, result.text_content.encode('utf-8'), mtime)
+        return (name, None, mtime) # No text content
+
     except Exception as e:
-        return (rel_path, None, original_mtime, str(e))
+        # Return error as value (Result pattern)
+        return (name, e, mtime)
+
+def sink_stream(output_tar: tarfile.TarFile, results):
+    """
+    Sink: Consumes results and writes to output tar stream.
+    """
+    for name, content_or_error, mtime in results:
+        if isinstance(content_or_error, Exception):
+            sys.stderr.write(f"[Convert Failed] {name}: {content_or_error}\n")
+            continue
+
+        if content_or_error is None:
+            sys.stderr.write(f"[Skip] {name}: No convertable text content.\n")
+            continue
+
+        md_bytes = content_or_error
+        base, _ = os.path.splitext(name)
+        new_name = base + ".md"
+
+        info = tarfile.TarInfo(name=new_name)
+        info.size = len(md_bytes)
+        info.mtime = mtime
+
+        output_tar.addfile(info, io.BytesIO(md_bytes))
+        sys.stderr.write(f"x {new_name}\n")
 
 def main():
-    # 入力がパイプライン(ストリーム)かどうかの簡易チェック
-    if sys.stdin.isatty():
-        print("Usage: This is a pipe filter. Use it like:")
-        print("  tar -cf - src_dir | markthesedown | tar -x -C out_dir")
-        sys.exit(1)
+    # Unix Principle: Handle SIGPIPE gracefully for pipeline usage
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-    # 並列数: CPUコア数の2倍程度を目安に設定（IO待ちも考慮）
-    try:
-        max_workers = (os.cpu_count() or 1) * 2
-    except:
-        max_workers = 4
-
-    sys.stderr.write(f"Running with {max_workers} threads...\n")
+    # Configuration: Parallelism
+    max_workers = (os.cpu_count() or 1) * 2
 
     try:
-        # 入力ストリーム (標準入力)
+        # IO Monad-ish Wrapper
         input_tar = tarfile.open(fileobj=sys.stdin.buffer, mode='r|*')
-        # 出力ストリーム (標準出力)
         output_tar = tarfile.open(fileobj=sys.stdout.buffer, mode='w|')
 
-        # 展開・変換用の一時領域
         with tempfile.TemporaryDirectory() as temp_dir:
-            conversion_tasks = []
+            # Build the Pipeline
+            # 1. Source: Generator of extracted files
+            tasks = source_stream(input_tar, temp_dir)
 
-            # 1. まず入力をすべて一時ディレクトリに展開する（並列化の準備）
-            # ストリーム入力のTARはランダムアクセスできないため、全展開が必要
-            for member in input_tar:
-                if not member.isfile():
-                    continue
+            # 2. Map: Parallel transformation
+            # ThreadPoolExecutor.map is lazy-ish but preserves order.
+            # It consumes the 'tasks' generator (which triggers extraction)
+            # and yields results as they complete (in order).
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = executor.map(transform_content, tasks)
 
-                # フィルタリング
-                clean_name = os.path.normpath(member.name)
-                basename = os.path.basename(clean_name)
-                if clean_name.startswith("..") or os.path.isabs(clean_name) or basename.startswith("._") or basename == ".DS_Store":
-                    continue
+                # 3. Sink: Write results
+                sink_stream(output_tar, results)
 
-                # 一時ファイルへのパス
-                temp_path = os.path.join(temp_dir, clean_name)
-                os.makedirs(os.path.dirname(temp_path), exist_ok=True)
-
-                # ファイル書き出し
-                extracted = input_tar.extractfile(member)
-                if extracted:
-                    with open(temp_path, 'wb') as f:
-                        shutil.copyfileobj(extracted, f)
-
-                    # タスクリストに追加 (絶対パス, mtime, 元の相対パス)
-                    conversion_tasks.append((temp_path, member.mtime, clean_name))
-
-            input_tar.close()
-
-            # 2. ThreadPoolExecutorで並列変換実行
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # convert_task関数に引数を渡して実行
-                future_to_file = {executor.submit(convert_task, task): task for task in conversion_tasks}
-
-                for future in concurrent.futures.as_completed(future_to_file):
-                    rel_path, md_bytes, mtime, error = future.result()
-
-                    if error:
-                        # エラー時はスキップログを出力し、書き込みはしない
-                        sys.stderr.write(f"[Skip] {rel_path}: {error}\n")
-                        continue
-
-                    if md_bytes:
-                        # 3. 変換成功したらTARに出力
-                        base, _ = os.path.splitext(rel_path)
-                        new_name = base + ".md"
-
-                        info = tarfile.TarInfo(name=new_name)
-                        info.size = len(md_bytes)
-                        info.mtime = mtime
-
-                        output_tar.addfile(info, io.BytesIO(md_bytes))
-                        sys.stderr.write(f"x {new_name}\n")
-
+        input_tar.close()
         output_tar.close()
 
+    except BrokenPipeError:
+        # Standard Unix behavior: exit silently
+        sys.stderr.close()
+        sys.exit(0)
     except Exception as e:
         sys.stderr.write(f"Critical Error: {e}\n")
         sys.exit(1)
