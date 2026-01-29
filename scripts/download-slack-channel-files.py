@@ -2,123 +2,119 @@ import sys
 import os
 import argparse
 import requests
+import tarfile
+import time
 from typing import Generator, Iterator, Optional, NamedTuple
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-# --- 1. Data Structures (Immutable) ---
+# --- 1. Data Structures ---
 class FileMeta(NamedTuple):
-    """ファイル情報を保持する不変データ構造"""
     name: str
     url: str
     timestamp: str
 
     @property
     def safe_filename(self) -> str:
-        return f"{self.timestamp}_{self.name}".replace("/", "_")
+        # ディレクトリトラバーサル防止かつユニーク化
+        clean_name = self.name.replace("/", "_").replace("\\", "_")
+        return f"{self.timestamp}_{clean_name}"
 
 class Config(NamedTuple):
     token: str
     channel_id: str
-    output_dir: str
 
-# --- 2. Pure Functions (Transformation) ---
+# --- 2. Pure Functions ---
 def parse_args(args: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Stream Slack files as a tarball to stdout.")
     parser.add_argument("channel_id")
-    parser.add_argument("--dir", default="./downloads")
     return parser.parse_args(args)
 
 def extract_file_meta(message: dict) -> Iterator[FileMeta]:
-    """1つのメッセージ辞書からファイル情報のストリームを生成する純粋関数"""
-    if "files" not in message:
-        return
-    
+    if "files" not in message: return
     ts = message.get("ts", "0")
     for f in message["files"]:
-        if f.get("mode") == "tombstone":
-            continue
-        
+        if f.get("mode") == "tombstone": continue
         url = f.get("url_private_download")
         name = f.get("name", "untitled")
-        
         if url:
             yield FileMeta(name=name, url=url, timestamp=ts)
-
-# --- 3. Impure Functions (Source / Generator) ---
-def stream_history(client: WebClient, channel_id: str) -> Generator[dict, None, None]:
-    """APIページネーションを隠蔽し、メッセージの無限ストリームとして振る舞う"""
-    cursor = None
-    while True:
-        response = client.conversations_history(
-            channel=channel_id, 
-            cursor=cursor, 
-            limit=100
-        )
-        yield from response.get("messages", [])
-        
-        if not response.get("has_more"):
-            break
-        cursor = response["response_metadata"]["next_cursor"]
 
 def get_token_from_stdin() -> Optional[str]:
     if not sys.stdin.isatty():
         return sys.stdin.read().strip()
     return os.environ.get("SLACK_BOT_TOKEN")
 
-# --- 4. Impure Functions (Sink / Action) ---
-def download_file(meta: FileMeta, config: Config) -> None:
-    """副作用: ネットワークから取得し、ディスクに書き込む"""
-    path = os.path.join(config.output_dir, meta.safe_filename)
-    
-    if os.path.exists(path):
-        return # Idempotency (冪等性) の確保
+# --- 3. Stream Generator ---
+def stream_history(client: WebClient, channel_id: str) -> Generator[dict, None, None]:
+    cursor = None
+    while True:
+        response = client.conversations_history(channel=channel_id, cursor=cursor, limit=100)
+        yield from response.get("messages", [])
+        if not response.get("has_more"): break
+        cursor = response["response_metadata"]["next_cursor"]
 
-    print(f"Downloading: {meta.safe_filename}")
-    headers = {"Authorization": f"Bearer {config.token}"}
-    
-    # Context Managerでリソースリークを防ぐ
-    with requests.get(meta.url, headers=headers, stream=True) as r:
-        if r.status_code == 200:
-            with open(path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-        else:
-            print(f"Failed: {r.status_code}", file=sys.stderr)
+# --- 4. Stream Processor (The Tar Packer) ---
+def pipe_to_tar(meta: FileMeta, token: str, tar: tarfile.TarFile) -> None:
+    """HTTPストリームを読みながら、Tarストリームに梱包して送出する"""
+    headers = {"Authorization": f"Bearer {token}"}
 
-# --- 5. Composition root (The Wiring) ---
+    # stream=True でヘッダーだけ先に取得
+    try:
+        with requests.get(meta.url, headers=headers, stream=True) as r:
+            if r.status_code != 200:
+                print(f"Skipping {meta.safe_filename}: HTTP {r.status_code}", file=sys.stderr)
+                return
+
+            # Tarヘッダーを作成するには、事前にファイルサイズが必要
+            content_length = r.headers.get("Content-Length")
+            if content_length is None:
+                print(f"Skipping {meta.safe_filename}: No Content-Length header", file=sys.stderr)
+                return
+
+            size = int(content_length)
+
+            # TarInfoの作成
+            info = tarfile.TarInfo(name=meta.safe_filename)
+            info.size = size
+            info.mtime = int(float(meta.timestamp)) # タイムスタンプも維持
+
+            print(f"Archiving: {meta.safe_filename} ({size} bytes)", file=sys.stderr)
+
+            # rawソケットからTarストリームへ直結 (メモリに溜めない)
+            tar.addfile(tarinfo=info, fileobj=r.raw)
+
+    except Exception as e:
+        print(f"Error processing {meta.safe_filename}: {e}", file=sys.stderr)
+
+# --- 5. Main Wiring ---
 def main():
-    # Configuration (Input)
+    # Stdoutがターミナルに繋がっている場合はバイナリを流さない (文字化け防止)
+    if sys.stdout.isatty():
+        print("Error: You must pipe the output to a file or command (e.g., > output.tar)", file=sys.stderr)
+        sys.exit(1)
+
     args = parse_args(sys.argv[1:])
     token = get_token_from_stdin()
-    
+
     if not token:
         print("Error: Token required via stdin or env var.", file=sys.stderr)
         sys.exit(1)
 
-    config = Config(token, args.channel_id, args.dir)
-    client = WebClient(token=config.token)
-    os.makedirs(config.output_dir, exist_ok=True)
+    client = WebClient(token=token)
 
-    try:
-        # Pipeline: Source -> Transform -> Sink
-        # 1. Source: メッセージのストリーム
-        messages = stream_history(client, config.channel_id)
-        
-        # 2. Transform: ファイルメタデータのストリーム (FlatMap)
-        files = (
-            meta 
-            for msg in messages 
-            for meta in extract_file_meta(msg)
-        )
-        
-        # 3. Sink: 実行 (各要素に対してIOを実行)
-        for meta in files:
-            download_file(meta, config)
-            
-    except SlackApiError as e:
-        print(f"API Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    # stdout.buffer を 'w|' (ストリーム書き込みモード) で開く
+    with tarfile.open(fileobj=sys.stdout.buffer, mode="w|") as tar:
+        try:
+            messages = stream_history(client, args.channel_id)
+            files = (meta for msg in messages for meta in extract_file_meta(msg))
+
+            for meta in files:
+                pipe_to_tar(meta, token, tar)
+
+        except SlackApiError as e:
+            print(f"API Error: {e}", file=sys.stderr)
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

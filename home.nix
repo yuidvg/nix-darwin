@@ -24,6 +24,7 @@ let
     ps.requests
     ps.beautifulsoup4
     ps.trafilatura
+    ps.slack-sdk
   ]);
 
   urls-under = pkgs.writeScriptBin "urls-under" ''
@@ -34,6 +35,11 @@ let
   urls2contents = pkgs.writeScriptBin "urls2contents" ''
     #!${webScrapingPythonEnv}/bin/python
     ${builtins.readFile ./scripts/urls2contents.py}
+  '';
+
+  download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
+    #!${webScrapingPythonEnv}/bin/python
+    ${builtins.readFile ./scripts/download-slack-channel-files.py}
   '';
 in
 {
@@ -78,6 +84,7 @@ in
     markthesedown
     urls-under
     urls2contents
+    download-slack-channel-files
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
