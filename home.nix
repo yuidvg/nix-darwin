@@ -8,15 +8,32 @@
 let
   # 1. 必要なライブラリを含んだPython環境を定義
   #    ※ python313Packages があるなら明示的に python313 を使うのが安全です
-  myPythonEnv = pkgs.python313.withPackages (ps: [
+  markthesedownPythonEnv = pkgs.python313.withPackages (ps: [
     ps.markitdown
   ]);
 
   # 2. Pythonファイルの中身を読み込んで、実行可能なスクリプトとしてパッケージ化
-  #    ./scripts/md-filter.py はこの home.nix からの相対パスです
-  md-filter = pkgs.writeScriptBin "md-filter" ''
-    #!${myPythonEnv}/bin/python
-    ${builtins.readFile ./scripts/md-filter.py}
+  #    ./scripts/markthesedown.py はこの home.nix からの相対パスです
+  markthesedown = pkgs.writeScriptBin "markthesedown" ''
+    #!${markthesedownPythonEnv}/bin/python
+    ${builtins.readFile ./scripts/markthesedown.py}
+  '';
+
+  # スクレイピング・URL収集用環境
+  webScrapingPythonEnv = pkgs.python313.withPackages (ps: [
+    ps.requests
+    ps.beautifulsoup4
+    ps.trafilatura
+  ]);
+
+  urls-under = pkgs.writeScriptBin "urls-under" ''
+    #!${webScrapingPythonEnv}/bin/python
+    ${builtins.readFile ./scripts/urls-under.py}
+  '';
+
+  urls2contents = pkgs.writeScriptBin "urls2contents" ''
+    #!${webScrapingPythonEnv}/bin/python
+    ${builtins.readFile ./scripts/urls2contents.py}
   '';
 in
 {
@@ -58,7 +75,9 @@ in
     imagemagick # Image manipulation (was: imagemagick)
     poppler # PDF utilities (was: poppler)
     python313Packages.markitdown
-    md-filter
+    markthesedown
+    urls-under
+    urls2contents
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)

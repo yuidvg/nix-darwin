@@ -3,7 +3,7 @@
 
 # ==============================================================================
 # MarkItDown Filter (Pure Nix Version)
-# Usage: tar -cf - ./docs | md-filter | tar -x -C ./output
+# Usage: tar -cf - ./docs | markthesedown | tar -x -C ./output
 # ==============================================================================
 
 import sys
@@ -24,7 +24,7 @@ def main():
     # 入力がパイプライン(ストリーム)かどうかの簡易チェック
     if sys.stdin.isatty():
         print("Usage: This is a pipe filter. Use it like:")
-        print("  tar -cf - src_dir | md-filter | tar -x -C out_dir")
+        print("  tar -cf - src_dir | markthesedown | tar -x -C out_dir")
         sys.exit(1)
 
     md = MarkItDown()
