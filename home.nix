@@ -29,6 +29,15 @@ let
     ${builtins.readFile ./scripts/markthesedown.py}
   '';
 
+  gemini-rag = pkgs.writeScriptBin "gemini-rag" ''
+    #!/bin/sh
+    # Load secret if not in env
+    if [ -z "$GEMINI_API_KEY" ] && [ -r "${config.sops.secrets.gemini_api_key.path}" ]; then
+      export GEMINI_API_KEY="$(cat ${config.sops.secrets.gemini_api_key.path})"
+    fi
+    exec ${pkgs.deno}/bin/deno run --allow-all /private/etc/nix-darwin/scripts/gemini-rag.ts "$@"
+  '';
+
   # スクレイピング・URL収集用環境
   webScrapingPythonEnv = pkgs.python313.withPackages (ps: [
     ps.requests
@@ -56,6 +65,11 @@ let
     #!${pkgs.python313}/bin/python
     ${builtins.readFile ./scripts/flatten-dir.py}
   '';
+
+  cat-all = pkgs.writeScriptBin "cat-all" ''
+    #!${pkgs.python313}/bin/python
+    ${builtins.readFile ./scripts/cat-all.py}
+  '';
 in
 {
   # ========================================
@@ -71,6 +85,7 @@ in
     # 復号されたシークレットの定義
     secrets = {
       openrouter_api_key = { };
+      gemini_api_key = { };
     };
   };
 
@@ -97,6 +112,8 @@ in
     # nix tools
     nixfmt-rfc-style
     nil
+    sops
+    deno # Explicitly add deno for TS execution
 
     nixos-generators
 
@@ -121,6 +138,8 @@ in
     urls2contents
     download-slack-channel-files
     flatten-dir
+    cat-all
+    gemini-rag
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
@@ -200,6 +219,8 @@ in
               # File -> Environment Variable conversion
               [[ -r "${config.sops.secrets.openrouter_api_key.path}" ]] && \
                 export OPENROUTER_API_KEY="$(cat ${config.sops.secrets.openrouter_api_key.path})"
+              [[ -r "${config.sops.secrets.gemini_api_key.path}" ]] && \
+                export GEMINI_API_KEY="$(cat ${config.sops.secrets.gemini_api_key.path})"
             '';
           in
           lib.mkMerge [

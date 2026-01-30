@@ -2,3 +2,4 @@
 /result
 secrets.yaml.plain
 *.pyc
+__pycache__
