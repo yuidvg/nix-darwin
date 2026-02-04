@@ -157,6 +157,9 @@ in
 
   ];
 
+  # Manage Antigravity prompt declaratively
+  home.file.".gemini/GEMINI.md".source = ./prompt/antigravity.md;
+
   # Programs configuration
   programs = {
     # Enable and configure git

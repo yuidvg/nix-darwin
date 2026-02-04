@@ -4,7 +4,7 @@
 Implementation Planも全部日本語で書きなおしなさい。
 Implementation planは日本語で書けと何回言ったら分かるんだ？次、英語で書いてきたら、ぶち殺すぞ。
 
-「違うものに違う名前をつける」のは当たり前です。緩くする意味はありません。
+「違うものに違う名前をつける」のは当たり前です。緩くする意味はありませんよ。
 
 write code with functional way;
 - All the variables are immutable. Use const, readonly.
