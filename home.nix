@@ -157,32 +157,11 @@ in
 
   ];
 
-  # Manage Antigravity prompt with Nix-native templating
-  home.file.".gemini/GEMINI.md".text =
-    let
-      promptDir = ./prompt;
-
-      mdFileNames = builtins.attrNames (
-        lib.filterAttrs (name: type: type == "regular" && lib.hasSuffix ".md" name) (
-          builtins.readDir promptDir
-        )
-      );
-
-      search =
-        (map (name: "@[${name}]") mdFileNames)
-        ++ (map (name: "@[${lib.removeSuffix ".md" name}]") mdFileNames);
-
-      replace =
-        let
-          contents = map (name: builtins.readFile (promptDir + "/${name}")) mdFileNames;
-        in
-        contents ++ contents;
-
-      baseTemplate = builtins.readFile ./prompt/antigravity.md;
-
-      processed = builtins.replaceStrings search replace baseTemplate;
-    in
-    processed;
+  # Manage Antigravity prompt using generic template expansion
+  home.file.".gemini/GEMINI.md".text = import ./lib/expand-template.nix { inherit lib; } {
+    templateScope = ./prompt;
+    template = ./prompt/antigravity.md;
+  };
 
   # Programs configuration
   programs = {
