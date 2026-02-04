@@ -65,6 +65,8 @@ let
       safe-exceptions
       bytestring
       time
+      async
+      stm
     ];
   } (builtins.readFile ./scripts/tar-map.hs);
 
