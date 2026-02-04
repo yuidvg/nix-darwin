@@ -51,10 +51,18 @@ let
     ${builtins.readFile ./scripts/urls-under.py}
   '';
 
-  urls2contents = pkgs.writeScriptBin "urls2contents" ''
-    #!${webScrapingPythonEnv}/bin/python
-    ${builtins.readFile ./scripts/urls2contents.py}
-  '';
+  urls2contents = pkgs.writers.writeHaskellBin "urls2contents" {
+    libraries = with pkgs.haskellPackages; [
+      req
+      scalpel # Keep lazily if needed, but trafilatura is preferred
+      optparse-applicative
+      text
+      protolude
+      safe-exceptions
+      process
+      modern-uri
+    ];
+  } (builtins.readFile ./scripts/urls2contents.hs);
 
   download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
     #!${webScrapingPythonEnv}/bin/python
@@ -136,6 +144,8 @@ in
     markthesedown
     urls-under
     urls2contents
+    # webScrapingPythonEnv # This might be needed if trafilatura is not standalone
+    python313Packages.trafilatura # Ensure trafilatura CLI is available
     download-slack-channel-files
     flatten-dir
     cat-all
