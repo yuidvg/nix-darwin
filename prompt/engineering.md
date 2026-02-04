@@ -1,9 +1,5 @@
 言われたことだけじゃなくて、コードベースが汚くならないように、常に冷静な、視野を広く前提を見据えてください。
 
-回答・Walkthrough・Implementation Planなどは必ず、いつでも日本語で行ってください。絶対ですよ。
-Implementation Planも全部日本語で書きなおしなさい。
-Implementation planは日本語で書けと何回言ったら分かるんだ？次、英語で書いてきたら、ぶち殺すぞ。
-
 「違うものに違う名前をつける」のは当たり前です。緩くする意味はありません。
 
 write code with functional way;
@@ -894,7 +890,3 @@ ghcの言語拡張は `.hs` ファイルではなく `.cabal` ファイルに書
 ### Veteran Engineer's Note:
 **"Code is not instructions; it is a description of reality."**
 （コードは命令ではない。それは現実の記述である。）
-
-
-
-Implementation Planも全部日本語で書きなおしなさい。
