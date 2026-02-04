@@ -160,13 +160,27 @@ in
   # Manage Antigravity prompt with Nix-native templating
   home.file.".gemini/GEMINI.md".text =
     let
-      antigravity = builtins.readFile ./prompt/antigravity.md;
-      unixPrincipal = builtins.readFile ./prompt/unix-principal.md;
-      engineering = builtins.readFile ./prompt/engineering.md;
+      promptDir = ./prompt;
 
-      processed =
-        builtins.replaceStrings [ "@[unix-principal]" "@[engineering]" ] [ unixPrincipal engineering ]
-          antigravity;
+      mdFileNames = builtins.attrNames (
+        lib.filterAttrs (name: type: type == "regular" && lib.hasSuffix ".md" name) (
+          builtins.readDir promptDir
+        )
+      );
+
+      search =
+        (map (name: "@[${name}]") mdFileNames)
+        ++ (map (name: "@[${lib.removeSuffix ".md" name}]") mdFileNames);
+
+      replace =
+        let
+          contents = map (name: builtins.readFile (promptDir + "/${name}")) mdFileNames;
+        in
+        contents ++ contents;
+
+      baseTemplate = builtins.readFile ./prompt/antigravity.md;
+
+      processed = builtins.replaceStrings search replace baseTemplate;
     in
     processed;
 
