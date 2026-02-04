@@ -157,8 +157,18 @@ in
 
   ];
 
-  # Manage Antigravity prompt declaratively
-  home.file.".gemini/GEMINI.md".source = ./prompt/antigravity.md;
+  # Manage Antigravity prompt with Nix-native templating
+  home.file.".gemini/GEMINI.md".text =
+    let
+      antigravity = builtins.readFile ./prompt/antigravity.md;
+      unixPrincipal = builtins.readFile ./prompt/unix-principal.md;
+      engineering = builtins.readFile ./prompt/engineering.md;
+
+      processed =
+        builtins.replaceStrings [ "@[unix-principal]" "@[engineering]" ] [ unixPrincipal engineering ]
+          antigravity;
+    in
+    processed;
 
   # Programs configuration
   programs = {
