@@ -2,129 +2,164 @@
   description = "Example nix-darwin system flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    nix-darwin.url = "github:nix-darwin/nix-darwin/master";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nix-darwin.url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
-    # home manager
-    home-manager.url = "github:nix-community/home-manager";
+
+    home-manager.url = "github:nix-community/home-manager/release-25.11";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    # mac app util
     mac-app-util.url = "github:hraban/mac-app-util";
 
-    # sops-nix for secrets management
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # New inputs for Haskell Dev Environment
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    haskell-flake.url = "github:srid/haskell-flake";
   };
 
   outputs =
     inputs@{
       self,
-      nix-darwin,
       nixpkgs,
-      home-manager,
-      mac-app-util,
-      sops-nix,
+      nix-darwin,
+      flake-parts,
+      haskell-flake,
+      ...
     }:
-    let
-      configuration =
-        { pkgs, lib, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+      imports = [ inputs.haskell-flake.flakeModule ];
+
+      perSystem =
         {
-          # List packages installed in system profile. To search by name, run:
-          # $ nix-env -qaP | grep wget
-          environment.systemPackages = [ pkgs.vim ];
+          self',
+          pkgs,
+          config,
+          ...
+        }:
+        {
+          # Haskell Configuration via haskell-flake
+          haskellProjects.default = {
+            # The scripts directory containing the .cabal file
+            projectRoot = ./scripts;
 
-          # Necessary for using flakes on this system.
-          nix = {
-            settings = {
-              experimental-features = "nix-command flakes";
-              trusted-users = [
-                "root"
-                "yui"
-              ];
-              builders-use-substitutes = true;
-              accept-flake-config = true;
-            };
-            linux-builder = {
+            devShell = {
               enable = true;
-              ephemeral = true;
-              maxJobs = 4;
-              config = {
-                virtualisation = {
-                  darwin-builder = {
-                    diskSize = 40 * 1024;
-                    memorySize = 8 * 1024;
-                  };
-                  cores = 6;
-                };
+              tools = hp: {
+                haskell-language-server = hp.haskell-language-server;
+                fourmolu = hp.fourmolu;
+                cabal-gild = pkgs.haskellPackages.cabal-gild;
               };
+              hlsCheck.enable = true;
+              hoogle = false;
             };
           };
 
-          # Enable alternative shell support in nix-darwin.
-          # programs.fish.enable = true;
+          # Default devShell
+          # devShells.default is automatically defined by haskell-flake
 
-          # Set Git commit hash for darwin-version.
-          system.configurationRevision = self.rev or self.dirtyRev or null;
-
-          # Used for backwards compatibility, please read the changelog before changing.
-          # $ darwin-rebuild changelog
-          system.stateVersion = 6;
-
-          # The platform the configuration will be used on.
-          nixpkgs.hostPlatform = "aarch64-darwin";
-
-          ## Darwin Configurations
-          # Allow unfree packages
-          nixpkgs.config.allowUnfreePredicate =
-            pkg:
-            builtins.elem (lib.getName pkg) [
-              "claude-code"
-            ];
-
-          # Define the user for home-manager
-          users.users.yui = {
-            name = "yui";
-            home = "/Users/yui";
-            shell = pkgs.zsh;
-          };
-          # Set primary user for homebrew and other user-specific options
-          system.primaryUser = "yui";
-          # System defaults configuration
-          system.defaults = {
-            CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" = true;
-          };
-          security.pam.services.sudo_local.touchIdAuth = true;
-
-          # Homebrew configuration
-          homebrew = {
-            enable = true;
-            casks = [
-              "blackhole-2ch"
-            ];
-          };
+          # Formatter for the flake itself
+          formatter = pkgs.nixfmt;
         };
-    in
-    {
-      # Build darwin flake using:
-      # $ darwin-rebuild build --flake .#Yuis-MacBook-Pro
-      darwinConfigurations."Yuis-MacBook-Pro" = nix-darwin.lib.darwinSystem {
-        modules = [
-          configuration
-          home-manager.darwinModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.backupFileExtension = "backup";
-            home-manager.users.yui = {
-              imports = [
-                ./home.nix
-                mac-app-util.homeManagerModules.default
-                sops-nix.homeManagerModules.sops
-              ];
-            };
-          }
-        ];
+
+      flake = {
+        # Darwin configurations
+        darwinConfigurations."Yuis-MacBook-Pro" = nix-darwin.lib.darwinSystem {
+          modules = [
+            (
+              { pkgs, lib, ... }:
+              {
+                # List packages installed in system profile.
+                environment.systemPackages = [ pkgs.vim ];
+
+                # Necessary for using flakes on this system.
+                nix = {
+                  settings = {
+                    experimental-features = "nix-command flakes";
+                    trusted-users = [
+                      "root"
+                      "yui"
+                    ];
+                    builders-use-substitutes = true;
+                    accept-flake-config = true;
+                  };
+                  linux-builder = {
+                    enable = true;
+                    ephemeral = true;
+                    maxJobs = 4;
+                    config = {
+                      virtualisation = {
+                        darwin-builder = {
+                          diskSize = 40 * 1024;
+                          memorySize = 8 * 1024;
+                        };
+                        cores = 6;
+                      };
+                    };
+                  };
+                };
+
+                # Set Git commit hash for darwin-version.
+                system.configurationRevision = self.rev or self.dirtyRev or null;
+
+                # Used for backwards compatibility
+                system.stateVersion = 6;
+
+                # The platform the configuration will be used on.
+                nixpkgs.hostPlatform = "aarch64-darwin";
+
+                ## Darwin Configurations
+                # Allow unfree packages
+                nixpkgs.config.allowUnfreePredicate =
+                  pkg:
+                  builtins.elem (lib.getName pkg) [
+                    "claude-code"
+                  ];
+
+                # Define the user for home-manager
+                users.users.yui = {
+                  name = "yui";
+                  home = "/Users/yui";
+                  shell = pkgs.zsh;
+                };
+                # Set primary user for homebrew and other user-specific options
+                system.primaryUser = "yui";
+                # System defaults configuration
+                system.defaults = {
+                  CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" = true;
+                };
+                security.pam.services.sudo_local.touchIdAuth = true;
+
+                # Homebrew configuration
+                homebrew = {
+                  enable = true;
+                  casks = [
+                    "blackhole-2ch"
+                  ];
+                };
+              }
+            )
+
+            inputs.home-manager.darwinModules.home-manager
+            {
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.backupFileExtension = "backup";
+              home-manager.users.yui = {
+                imports = [
+                  ./home.nix
+                  inputs.mac-app-util.homeManagerModules.default
+                  inputs.sops-nix.homeManagerModules.sops
+                ];
+              };
+            }
+          ];
+        };
       };
     };
 }

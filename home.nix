@@ -38,6 +38,20 @@ let
     exec ${pkgs.deno}/bin/deno run --allow-all /private/etc/nix-darwin/scripts/gemini-rag.ts "$@"
   '';
 
+  split-video = pkgs.writers.writeHaskellBin "split-video" {
+    libraries = with pkgs.haskellPackages; [
+      protolude
+      text
+      process
+      directory
+      filepath
+      tar
+      optparse-applicative
+      safe-exceptions
+      bytestring
+    ];
+  } (builtins.readFile ./scripts/split-video.hs);
+
   # スクレイピング・URL収集用環境
   webScrapingPythonEnv = pkgs.python313.withPackages (ps: [
     ps.requests
@@ -118,7 +132,7 @@ in
   # Packages that should be installed to the user profile.
   home.packages = with pkgs; [
     # nix tools
-    nixfmt-rfc-style
+    nixfmt
     nil
     sops
     deno # Explicitly add deno for TS execution
@@ -150,6 +164,7 @@ in
     flatten-dir
     cat-all
     gemini-rag
+    split-video
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
@@ -178,9 +193,11 @@ in
     # Enable and configure git
     git = {
       enable = true;
-      userName = "Yui Nishimura";
-      userEmail = "nisshi.yui79@gmail.com";
-      extraConfig = {
+      settings = {
+        user = {
+          name = "Yui Nishimura";
+          email = "nisshi.yui79@gmail.com";
+        };
         init.defaultBranch = "master";
         pull.rebase = true;
         filter.lfs = {
