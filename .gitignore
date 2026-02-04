@@ -4,3 +4,4 @@ secrets.yaml.plain
 *.pyc
 __pycache__
 .direnv
+*.log

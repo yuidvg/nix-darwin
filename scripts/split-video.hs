@@ -22,7 +22,7 @@ module Main where
 import Protolude hiding (bracket)
 import qualified Data.Text as T
 import qualified Data.ByteString.Lazy as BL
-import System.IO (hPutStrLn, stderr, stdin, stdout, BufferMode(..), hSetBinaryMode, hSetBuffering)
+import System.IO (BufferMode(..), hSetBinaryMode, hSetBuffering)
 import System.Process (createProcess, proc, std_in, std_out, std_err, StdStream(..), waitForProcess, ProcessHandle, getProcessExitCode)
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive, removeFile, listDirectory, getTemporaryDirectory)
 import System.FilePath ((</>), takeFileName)
@@ -80,14 +80,11 @@ withSystemTempDirectory :: FilePath -> (FilePath -> IO a) -> IO a
 withSystemTempDirectory template action = do
   sysTmp <- getTemporaryDirectory
   let dir = sysTmp </> template
-  -- We append a random number or similar in a real world, but for simplicity/purity we rely on mktemp behavior if available or just create strict path
-  -- In Haskell, usually `openTempFile` is used, but we need a directory.
-  -- Simplified: Create a specific logic or use random path.
-  -- Since we want robustness, we'll assume a unique run or handle collision.
-  -- Actually, `openTempDirectory` exists in `temporary` package but we don't have it.
-  -- We'll try to create a unique-ish one.
-  t <- show <$> diffUTCTime <$> getCurrentTime <*> pure (UTCTime (ModifiedJulianDay 0) 0) -- pseudo-random
-  let runDir = dir <> "-" <> (take 10 $ show t)
+  now <- getCurrentTime
+  let t = diffUTCTime now (UTCTime (ModifiedJulianDay 0) 0)
+      -- Show instance for NominalDiffTime produces a String-like thing, but via Protolude show it is Text
+      tStr = show t :: Text
+      runDir = dir <> "-" <> (take 10 $ T.unpack tStr)
   bracket
     (createDirectoryIfMissing True runDir >> return runDir)
     (\d -> tryAny (removeDirectoryRecursive d) >> return ())
@@ -222,4 +219,4 @@ isProcessAlive ph = getProcessExitCode ph >>= \case
   Just _  -> return False
 
 logInfo :: Text -> IO ()
-logInfo msg = hPutStrLn stderr $ "[split-video] " <> T.unpack msg
+logInfo msg = hPutStrLn stderr $ "[split-video] " <> msg

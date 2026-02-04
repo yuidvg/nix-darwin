@@ -49,8 +49,24 @@ let
       optparse-applicative
       safe-exceptions
       bytestring
+      time
     ];
   } (builtins.readFile ./scripts/split-video.hs);
+
+  tar-map = pkgs.writers.writeHaskellBin "tar-map" {
+    libraries = with pkgs.haskellPackages; [
+      protolude
+      text
+      process
+      directory
+      filepath
+      tar
+      optparse-applicative
+      safe-exceptions
+      bytestring
+      time
+    ];
+  } (builtins.readFile ./scripts/tar-map.hs);
 
   # スクレイピング・URL収集用環境
   webScrapingPythonEnv = pkgs.python313.withPackages (ps: [
@@ -165,6 +181,7 @@ in
     cat-all
     gemini-rag
     split-video
+    tar-map
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
