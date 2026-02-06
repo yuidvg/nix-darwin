@@ -25,8 +25,13 @@ let
   # 2. Pythonファイルの中身を読み込んで、実行可能なスクリプトとしてパッケージ化
   #    ./scripts/markthesedown.py はこの home.nix からの相対パスです
   markthesedown = pkgs.writeScriptBin "markthesedown" ''
-    #!${markthesedownPythonEnv}/bin/python
-    ${builtins.readFile ./scripts/markthesedown.py}
+    #!${pkgs.bash}/bin/bash
+    exec ${tar-map}/bin/tar-map --jobs 4 --timeout 300 -- ${pkgs.python313Packages.markitdown}/bin/markitdown {} -o {}.md
+  '';
+
+  make-videos-under-15min = pkgs.writeScriptBin "make-videos-under-15min" ''
+    #!${pkgs.bash}/bin/bash
+    exec ${tar-map}/bin/tar-map --jobs 4 --timeout 1200 -- ${pkgs.ffmpeg}/bin/ffmpeg -i {} -c copy -f segment -segment_time 14:50 -reset_timestamps 1 {}_%03d.mp4
   '';
 
   gemini-rag = pkgs.writeScriptBin "gemini-rag" ''
@@ -173,7 +178,9 @@ in
     imagemagick # Image manipulation (was: imagemagick)
     poppler # PDF utilities (was: poppler)
     python313Packages.markitdown
+    python313Packages.markitdown
     markthesedown
+    make-videos-under-15min
     urls-under
     urls2contents
     # webScrapingPythonEnv # This might be needed if trafilatura is not standalone
