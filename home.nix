@@ -359,8 +359,6 @@ in
                 export OPENROUTER_API_KEY="$(cat ${config.sops.secrets.openrouter_api_key.path})"
               [[ -r "${config.sops.secrets.gemini_api_key.path}" ]] && \
                 export GEMINI_API_KEY="$(cat ${config.sops.secrets.gemini_api_key.path})"
-              [[ -r "${config.sops.secrets.anthropic_api_key.path}" ]] && \
-                export ANTHROPIC_API_KEY="$(cat ${config.sops.secrets.anthropic_api_key.path})"
             '';
           in
           lib.mkMerge [
