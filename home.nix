@@ -124,21 +124,6 @@ let
     exec ${pkgs.deno}/bin/deno run --allow-all /private/etc/nix-darwin/scripts/gemini-rag.ts "$@"
   '';
 
-  split-video = pkgs.writers.writeHaskellBin "split-video" {
-    libraries = with pkgs.haskellPackages; [
-      protolude
-      text
-      process
-      directory
-      filepath
-      tar
-      optparse-applicative
-      safe-exceptions
-      bytestring
-      time
-    ];
-  } (builtins.readFile ./scripts/split-video.hs);
-
   tar-map = pkgs.writers.writeHaskellBin "tar-map" {
     libraries = with pkgs.haskellPackages; [
       protolude
@@ -271,7 +256,6 @@ in
     flatten-dir
     cat-all
     gemini-rag
-    split-video
     tar-map
 
     # System utilities
