@@ -1,8 +1,8 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
 -- |
 -- Module      : Main
@@ -18,56 +18,59 @@
 --   - Parallel Execution (--jobs)
 --   - Independent Sandboxing
 --   - Stream Processing (Constant Memory for Stream, O(N) threads)
-
 module Main where
 
-import Protolude hiding (bracket, try, catch, wait, cancel, async)
-import qualified Data.Text as T
-import qualified Data.ByteString.Lazy as BL
-import System.IO (hSetBinaryMode, hSetBuffering, BufferMode(..), Handle, hFlush)
-import System.Process (proc, createProcess, waitForProcess, std_in, std_out, std_err, StdStream(..), CreateProcess(..), ProcessHandle, withCreateProcess)
-import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive, listDirectory, getTemporaryDirectory, doesFileExist, copyFile)
-import System.FilePath ((</>), takeDirectory, takeFileName)
-import qualified Codec.Archive.Tar as Tar
-import qualified Codec.Archive.Tar.Entry as Tar
-import Options.Applicative
-import Control.Exception.Safe (bracket, tryAny, throwString)
-import Data.Time (getCurrentTime, diffUTCTime, UTCTime(..))
-import Data.Time (getCurrentTime, diffUTCTime, UTCTime(..))
-import Data.Time.Calendar (Day(..))
-import Control.Concurrent.Async (mapConcurrently, async, wait, forConcurrently)
-import Control.Concurrent.STM (atomically, newTChanIO, writeTChan, readTChan, TChan, TVar, newTVarIO, readTVar, modifyTVar, check)
-import Control.Concurrent (setNumCapabilities, getNumCapabilities, myThreadId)
+import Codec.Archive.Tar qualified as Tar
+import Codec.Archive.Tar.Entry qualified as Tar
+import Control.Concurrent (getNumCapabilities, myThreadId, setNumCapabilities)
+import Control.Concurrent.Async (async, forConcurrently, mapConcurrently, wait)
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
+import Control.Concurrent.QSem qualified as QSem
+import Control.Concurrent.STM (TChan, TVar, atomically, check, modifyTVar, newTChanIO, newTVarIO, readTChan, readTVar, writeTChan)
+import Control.Exception.Safe (bracket, throwString, tryAny)
+import Data.ByteString qualified as BS
+import Data.ByteString.Lazy qualified as BL
+import Data.Text qualified as T
+import Data.Time (UTCTime (..), diffUTCTime, getCurrentTime)
+import Data.Time.Calendar (Day (..))
 import GHC.Conc (numCapabilities)
-import qualified Control.Concurrent.QSem as QSem
+import Options.Applicative
+import Protolude hiding (async, bracket, cancel, catch, try, wait)
+import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getTemporaryDirectory, listDirectory, removeDirectoryRecursive)
+import System.FilePath (takeDirectory, takeFileName, (</>))
+import System.IO (BufferMode (..), Handle, hFlush, hSetBinaryMode, hSetBuffering)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc, std_err, std_in, std_out, waitForProcess, withCreateProcess)
 import System.Timeout (timeout)
-import Control.Concurrent.MVar (newMVar, withMVar, MVar)
-
 
 -- | Configuration
 data Config = Config
-  { cmdTemplate :: [[Char]]
-  , keepOriginal :: Bool
-  , jobs :: Int
-  , timeoutSec :: Int
+  { cmdTemplate :: [[Char]],
+    keepOriginal :: Bool,
+    jobs :: Int,
+    timeoutSec :: Int
   }
 
 -- | CLI Parser
 configParser :: Parser Config
-configParser = Config
-  <$> many (strArgument (metavar "COMMAND_AND_ARGS..."))
-  <*> switch (long "keep-structure" <> help "Maintain original directory structure for output files")
-  <*> option auto
+configParser =
+  Config
+    <$> many (strArgument (metavar "COMMAND_AND_ARGS..."))
+    <*> switch (long "keep-structure" <> help "Maintain original directory structure for output files")
+    <*> option
+      auto
       ( long "jobs"
-     <> short 'j'
-     <> metavar "N"
-     <> help "Number of parallel jobs"
-     <> value 4 )
-  <*> option auto
+          <> short 'j'
+          <> metavar "N"
+          <> help "Number of parallel jobs"
+          <> value 4
+      )
+    <*> option
+      auto
       ( long "timeout"
-     <> metavar "SECONDS"
-     <> help "Timeout per file in seconds"
-     <> value 180 )
+          <> metavar "SECONDS"
+          <> help "Timeout per file in seconds"
+          <> value 180
+      )
 
 -- | Main
 main :: IO ()
@@ -86,12 +89,14 @@ main = do
   let entries = Tar.read content
 
   processEntriesParallel config entries
-
   where
-    opts = info (configParser <**> helper)
-      ( fullDesc
-     <> progDesc "Apply a command to each file in a tar stream, emitting resulting files"
-     <> header "tar-map - The Monadic Bind for Filesystem Streams (Parallel)" )
+    opts =
+      info
+        (configParser <**> helper)
+        ( fullDesc
+            <> progDesc "Apply a command to each file in a tar stream, emitting resulting files"
+            <> header "tar-map - The Monadic Bind for Filesystem Streams (Parallel)"
+        )
 
 -- | Parallel Processing Logic
 -- Strategy:
@@ -105,7 +110,6 @@ main = do
 --       But this causes out-of-order output if we are not careful.
 --       Simple version: Only emit PROCESSED files. (Filter style).
 --       Input dirs are ignored. Output dirs are synthesized by `Tar.pack` or file paths.
---
 processEntriesParallel :: Config -> Tar.Entries Tar.FormatError -> IO ()
 processEntriesParallel config entries = do
   -- Output Lock (Stdout is not thread safe for interleaved byte writes)
@@ -114,135 +118,106 @@ processEntriesParallel config entries = do
   -- Semaphore for parallelism
   sem <- QSem.newQSem (jobs config)
 
-  -- We use a simple Async group.
-  -- We don't want to load ALL entries into memory.
-  -- `Tar.read` is lazy.
-  -- We'll use a recursive loop that forks threads.
+  -- Active job counter for waiting completion
+  active <- newTVarIO (0 :: Int)
 
   let loop Tar.Done = return ()
       loop (Tar.Fail e) = withMVar outLock $ \_ -> logInfo $ "[tar-map] Tar Error: " <> T.pack (show e :: [Char])
       loop (Tar.Next entry next) = do
-         case Tar.entryContent entry of
-           Tar.NormalFile _ _ -> do
-              -- Wait for slot
-              QSem.waitQSem sem
+        case Tar.entryContent entry of
+          Tar.NormalFile _ _ -> do
+            -- Wait for slot
+            QSem.waitQSem sem
+            atomically $ modifyTVar active (+ 1)
 
-              -- Fork worker
-              _ <- async $ do
-                 result <- tryAny $ processSingleEntry config entry
+            -- Fork worker with guaranteed cleanup
+            _ <- async $ flip finally (do QSem.signalQSem sem; atomically $ modifyTVar active (subtract 1)) $ do
+              result <- tryAny $ processSingleEntry config entry
 
-                 -- Release slot immediately after processing logic finishes
-                 -- (Outputting might take valid time but we release CPU slot)
-                 QSem.signalQSem sem
+              case result of
+                Right newEntries ->
+                  withMVar outLock $ \_ ->
+                    writeStrippingEOA stdout (Tar.write newEntries)
+                Left e ->
+                  withMVar outLock $ \_ ->
+                    logInfo $ "Error processing " <> T.pack (Tar.entryPath entry) <> ": " <> show e
 
-                 case result of
-                   Right newEntries ->
-                      withMVar outLock $ \_ ->
-                         mapM_ (\e -> BL.hPut stdout (Tar.write [e])) newEntries
-                   Left e ->
-                      withMVar outLock $ \_ ->
-                         logInfo $ "Error processing " <> T.pack (Tar.entryPath entry) <> ": " <> show e
-
-              loop next
-
-           _ -> do
-             -- Pass through or Ignore?
-             -- If we pass through, we might have collisions or out of order.
-             -- Current spec: Process files.
-             -- Let's just ignore non-files for "map" (files -> files).
-             loop next
+            loop next
+          _ -> loop next
 
   loop entries
 
-  -- Wait for all jobs to finish?
-  -- The simple `async` above creates "fire and forget" threads.
-  -- Main thread will exit `loop` when tar is done.
-  -- But workers might still be running!
-  -- We need to wait.
-
-  -- Proper Barrier:
-  -- Incremented counter? Or just use a dependency like `async`'s `forConcurrently` if we could stream.
-  -- Since we handle stream manually, we need a WaitGroup.
-  -- QSem is not enough for waiting completion.
-
-  -- Simple WaitGroup: output "running count" MVar?
-  -- Let's implement active counter.
-
-  active <- newTVarIO (0 :: Int)
-
-  let loop2 Tar.Done = return ()
-      loop2 (Tar.Fail e) = withMVar outLock $ \_ -> logInfo $ "[tar-map] Tar Error: " <> T.pack (show e :: [Char])
-      loop2 (Tar.Next entry next) = do
-         case Tar.entryContent entry of
-           Tar.NormalFile _ _ -> do
-              QSem.waitQSem sem
-              atomically $ modifyTVar active (+1)
-
-              _ <- async $ do
-                 _ <- tryAny $ do
-                     res <- processSingleEntry config entry
-                     withMVar outLock $ \_ -> mapM_ (\e -> BL.hPut stdout (Tar.write [e])) res
-
-                 QSem.signalQSem sem
-                 atomically $ modifyTVar active (subtract 1)
-
-              loop2 next
-           _ -> loop2 next
-
-  loop2 entries
-
-  -- Drain
+  -- Wait for all workers to finish
   atomically $ do
     n <- readTVar active
     check (n == 0)
+
+  -- Write final EOA (two 512-byte blocks of zeros)
+  BL.hPut stdout (BL.replicate 1024 0)
 
 processSingleEntry :: Config -> Tar.Entry -> IO [Tar.Entry]
 processSingleEntry config entry = do
   let path = Tar.entryPath entry
       content = case Tar.entryContent entry of
-                  Tar.NormalFile c _ -> c
-                  _ -> BL.empty
+        Tar.NormalFile c _ -> c
+        _ -> BL.empty
 
   logInfo $ "Processing: " <> T.pack path
 
   withSystemTempDirectory "tm" $ \tmpDir -> do
-      let workPath = tmpDir </> path
-      createDirectoryIfMissing True (takeDirectory workPath)
-      BL.writeFile workPath content
+    let workPath = tmpDir </> path
+    createDirectoryIfMissing True (takeDirectory workPath)
+    BL.writeFile workPath content
 
-      let dir = takeDirectory workPath
-          file = takeFileName workPath
-          cmdArgs = map (replacePlaceholder file) (cmdTemplate config)
-          (cmd:args) = if null (cmdTemplate config) then ["echo", file] else cmdArgs
+    let dir = takeDirectory workPath
+        file = takeFileName workPath
+        cmdArgs = map (replacePlaceholder file) (cmdTemplate config)
+        (cmd : args) = if null (cmdTemplate config) then ["echo", file] else cmdArgs
 
-      -- Run with Timeout
-      let runCmd = withCreateProcess ((proc cmd args) { cwd = Just dir, std_in = Inherit, std_out = Inherit, std_err = Inherit }) $ \_ _ _ ph -> waitForProcess ph
+    -- Run with Timeout (redirect stdout/stderr to avoid mixing with Tar stream)
+    let runCmd = withCreateProcess ((proc cmd args) {cwd = Just dir, std_in = NoStream, std_out = NoStream, std_err = Inherit}) $ \_ _ _ ph -> waitForProcess ph
 
-      exitCode <- timeout (timeoutSec config * 1000000) runCmd
+    exitCode <- timeout (timeoutSec config * 1000000) runCmd
 
-      case exitCode of
-        Nothing -> throwString "Timeout"
-        Just _ -> do
-           -- Collect results
-           subFiles <- listDirectoryRecursive dir
-           forM subFiles $ \subPath -> do
-              let fullSubPath = dir </> subPath
-              isFile <- doesFileExist fullSubPath
-              if isFile
-                then do
-                   let entryName = (takeDirectory path) </> subPath
-                   c <- BL.readFile fullSubPath
-                   case Tar.toTarPath False entryName of
-                     Right tp -> return (Just $ Tar.fileEntry tp c)
-                     Left _ -> return Nothing
-                else return Nothing
-           >>= return . catMaybes
-
+    case exitCode of
+      Nothing -> throwString "Timeout"
+      Just _ ->
+        do
+          -- Collect results
+          subFiles <- listDirectoryRecursive dir
+          forM subFiles $ \subPath -> do
+            let fullSubPath = dir </> subPath
+            isFile <- doesFileExist fullSubPath
+            if isFile
+              then do
+                let entryName = (takeDirectory path) </> subPath
+                c <- BL.readFile fullSubPath
+                case Tar.toTarPath False entryName of
+                  Right tp -> return (Just $ Tar.fileEntry tp c)
+                  Left _ -> return Nothing
+              else return Nothing
+          >>= return
+          . catMaybes
   where
     replacePlaceholder f template =
-        let f' = T.pack f
-            t' = T.pack template
-        in T.unpack (T.replace "{}" f' t')
+      let f' = T.pack f
+          t' = T.pack template
+       in T.unpack (T.replace "{}" f' t')
+
+-- | Writes a lazy ByteString to Handle but strips the last 1024 bytes (EOA)
+-- This is necessary because `Tar.write` adds EOA, but we want to concatenate streams.
+writeStrippingEOA :: Handle -> BL.ByteString -> IO ()
+writeStrippingEOA h bs = do
+  let (window, rest) = BL.splitAt 1024 bs
+  loop window (BL.toChunks rest)
+  where
+    loop _ [] = return () -- Window contains EOA, discard.
+    loop window (c : cs) = do
+      let combined = window `BL.append` BL.fromStrict c
+          n = fromIntegral (BS.length c)
+          (toWrite, newWindow) = BL.splitAt n combined
+      BL.hPut h toWrite
+      loop newWindow cs
 
 -- | Recursive list
 listDirectoryRecursive :: FilePath -> IO [FilePath]
@@ -250,13 +225,14 @@ listDirectoryRecursive dir = do
   names <- listDirectory dir
   paths <- forM names $ \name -> do
     let path = dir </> name
-    isDirectory <- doesFileExist path >>= \case
+    isDirectory <-
+      doesFileExist path >>= \case
         True -> return False
         False -> return True
     if isDirectory
       then do
-          subs <- listDirectoryRecursive path
-          return $ map (name </>) subs
+        subs <- listDirectoryRecursive path
+        return $ map (name </>) subs
       else return [name]
   return $ concat paths
 
@@ -278,6 +254,3 @@ withSystemTempDirectory template action = do
 
 logInfo :: Text -> IO ()
 logInfo msg = hPutStrLn stderr $ "[tar-map] " <> msg
-
-
-

@@ -246,6 +246,7 @@ in
           smudge = "git-lfs smudge -- %f";
         };
       };
+      lfs.enable = true;
     };
 
     # Enable and configure zsh
@@ -322,6 +323,8 @@ in
     VISUAL = "nvim";
     PAGER = "less";
     LESS = "-R";
+    # Sops Key Location (Global)
+    SOPS_AGE_KEY_FILE = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
   };
   home.sessionPath = [
     "${config.home.homeDirectory}/.local/bin"
