@@ -3,6 +3,7 @@
   pkgs,
   lib,
   mac-app-util,
+  userConfig,
   ...
 }:
 let
@@ -143,8 +144,8 @@ in
 
   # Home Manager needs a bit of information about you and the
   # paths it should manage.
-  home.username = "yui";
-  home.homeDirectory = "/Users/yui";
+  home.username = userConfig.username;
+  home.homeDirectory = "/Users/${userConfig.username}";
 
   # This value determines the Home Manager release that your
   # configuration is compatible with. This helps avoid breakage
@@ -214,6 +215,18 @@ in
     template = ./prompt/antigravity.md;
   };
 
+  # Manage Claude Code prompt
+  home.file.".claude/CLAUDE.md".text = import ./lib/expand-template.nix { inherit lib; } {
+    templateScope = ./prompt;
+    template = ./prompt/claude-code.md;
+  };
+
+  # Manage Cursor Rules
+  home.file.".cursorrules".text = import ./lib/expand-template.nix { inherit lib; } {
+    templateScope = ./prompt;
+    template = ./prompt/cursor.md;
+  };
+
   # Programs configuration
   programs = {
     # Enable and configure git
@@ -221,8 +234,8 @@ in
       enable = true;
       settings = {
         user = {
-          name = "Yui Nishimura";
-          email = "nisshi.yui79@gmail.com";
+          name = userConfig.gitName;
+          email = userConfig.gitEmail;
         };
         init.defaultBranch = "master";
         pull.rebase = true;
@@ -261,7 +274,7 @@ in
           let
             initExtraBeforeCompInit = lib.mkOrder 550 ''
               # Add completion to fpath
-              fpath=(/Users/yui/.docker/completions $fpath)
+              fpath=(${config.home.homeDirectory}/.docker/completions $fpath)
             '';
 
             initExtra = lib.mkOrder 1000 ''

@@ -28,6 +28,18 @@
       haskell-flake,
       ...
     }:
+    let
+      # ==========================================
+      # 🛠️ USER CONFIGURATION (Single Source of Truth)
+      # ==========================================
+      userConfig = {
+        username = "yui"; # ユーザー名 (whoami)
+        hostname = "Yuis-MacBook-Pro"; # ホスト名 (scutil --get LocalHostName)
+        gitName = "Yui Nishimura"; # Git Name
+        gitEmail = "nisshi.yui79@gmail.com"; # Git Email
+        # identityFile = "/Users/yui/.ssh/id_ed25519"; # (Optional: Future use)
+      };
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "aarch64-darwin"
@@ -69,10 +81,20 @@
 
       flake = {
         # Darwin configurations
-        darwinConfigurations."Yuis-MacBook-Pro" = nix-darwin.lib.darwinSystem {
+        darwinConfigurations."${userConfig.hostname}" = nix-darwin.lib.darwinSystem {
+          # Inject userConfig into all modules (Darwin & Home Manager)
+          specialArgs = {
+            inherit userConfig;
+          };
+
           modules = [
             (
-              { pkgs, lib, ... }:
+              {
+                pkgs,
+                lib,
+                userConfig,
+                ...
+              }:
               {
                 # List packages installed in system profile.
                 environment.systemPackages = [ pkgs.vim ];
@@ -83,7 +105,7 @@
                     experimental-features = "nix-command flakes";
                     trusted-users = [
                       "root"
-                      "yui"
+                      userConfig.username
                     ];
                     builders-use-substitutes = true;
                     accept-flake-config = true;
@@ -122,13 +144,13 @@
                   ];
 
                 # Define the user for home-manager
-                users.users.yui = {
-                  name = "yui";
-                  home = "/Users/yui";
+                users.users.${userConfig.username} = {
+                  name = userConfig.username;
+                  home = "/Users/${userConfig.username}";
                   shell = pkgs.zsh;
                 };
                 # Set primary user for homebrew and other user-specific options
-                system.primaryUser = "yui";
+                system.primaryUser = userConfig.username;
                 # System defaults configuration
                 system.defaults = {
                   CustomSystemPreferences."com.apple.security"."com.apple.security.authorization.ignoreArd" = true;
@@ -150,7 +172,11 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              home-manager.users.yui = {
+              # Explicitly inject userConfig into Home Manager modules
+              home-manager.extraSpecialArgs = {
+                inherit userConfig;
+              };
+              home-manager.users.${userConfig.username} = {
                 imports = [
                   ./home.nix
                   inputs.mac-app-util.homeManagerModules.default

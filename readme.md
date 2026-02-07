@@ -8,21 +8,77 @@ Infrastructure as Code (IaC) の原則に基づき、再現可能な環境構築
 *   **Nix**: マルチユーザーインストールが完了していること。
 *   **Experimental Features**: `nix-command` および `flakes` が有効化されていること。
 
-## 使い方 (Usage)
+## 使い方 (Quick Start for Team Members)
 
-### 設定の適用 (Apply Configuration)
+このリポジトリはテンプレートとして機能します。自分のGitHubアカウントに Fork してから使用してください。
 
-以下のコマンドを実行して、最新の設定をシステムに適用します。
+### 1. リポジトリの準備
+```bash
+# 1. Forkした自分のリポジトリをClone
+git clone <YOUR_FORKED_REPO_URL> ~/nix-config
+cd ~/nix-config
 
+# 2. Configの書き換え (ここだけ変更すればOK！)
+vim flake.nix
+```
+`flake.nix` の冒頭にある `userConfig` ブロックを、自分自身の情報に書き換えてください。
+```nix
+      userConfig = {
+        username = "yui";        # 自分のユーザー名 ("whoami" で確認)
+        hostname = "My-Mac";     # 自分のホスト名 ("scutil --get LocalHostName" で確認)
+        gitName = "Taro Yamada"; # Gitコミット名
+        gitEmail = "taro@ex.com";# Git Email
+      };
+```
+
+### 2. シークレットの準備 (Sops)
+APIキーなどの秘密情報は [Sops](https://github.com/mozilla/sops) で暗号化されています。
+自分用の鍵で再暗号化（Re-encrypt）する必要があります。
+
+> [!TIP]
+> **再現性のために**: `nix shell` (特定の環境に入る) や `nix run` (特定コマンドを実行する) を使い分け、依存関係を明示的に指定して実行します。
+
+```bash
+# 1. 鍵の生成 (初回のみ)
+# age-keygen は age パッケージの一部であるため、shell で環境に入って実行します
+nix shell nixpkgs#age -c age-keygen -o ~/.config/sops/age/keys.txt
+
+# 2. シークレットファイルの作成
+# テンプレートから secrets.yaml を作成し、自分のAPIキー等を記入します
+cp secrets.example.yaml secrets.yaml
+vim secrets.yaml
+
+# 3. 暗号化して保存
+# 公開鍵は age-keygen -y で自身の秘密鍵から導出します (grep依存の排除)
+nix run nixpkgs#sops -- --encrypt --age $(nix shell nixpkgs#age -c age-keygen -y ~/.config/sops/age/keys.txt) secrets.yaml > secrets.enc.yaml
+mv secrets.enc.yaml secrets.yaml
+
+# 4. Commit
+git add secrets.yaml
+git commit -m "chore: setup my secrets"
+```
+
+### 3. 設定の適用 (Apply)
 ```bash
 darwin-rebuild switch --flake .
 ```
 
-初回実行時やホスト名が異なる場合は、Flake名 (Hostname) を指定してください。
+## 開発環境 (Development Environment)
+
+このリポジトリ自体のメンテナンスや、Haskellスクリプトの開発を行うための環境も Nix で定義されています。
+
+### Direnv の有効化
+ディレクトリに移動した直後に `direnv` を許可することで、必要なツールチェーン (GHC, HLS, Cabal など) が自動的にロードされます。
 
 ```bash
-darwin-rebuild switch --flake .#Yuis-MacBook-Pro
+direnv allow
 ```
+
+ロード完了後、以下のコマンドが利用可能になります：
+*   `cabal`: Haskellビルドツール
+*   `haskell-language-server`: エディタ補完用
+*   `format`: コードフォーマッタ
+
 
 ### 利用可能なカスタムツール (Custom Tools)
 
