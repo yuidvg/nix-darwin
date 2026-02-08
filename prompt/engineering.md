@@ -895,3 +895,5 @@ ghcの言語拡張は `.hs` ファイルではなく `.cabal` ファイルに書
 SSH key の命名規則を以下のように定めます。これにより、キーの管理と識別が容易になります。
 - 命名規則: `<プロジェクト名>-<役割>-<人名>-<コンピューター名>-<日付>.pub`
   - 例: `myapp-deployment-yui-macbook-pro-m3max-20240601.pub`
+
+@[nixos-webapp-deployment-guide]
