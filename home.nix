@@ -264,7 +264,6 @@ in
     openvpn
 
     # former node packages
-    claude-code
     codex
 
     # gui apps
