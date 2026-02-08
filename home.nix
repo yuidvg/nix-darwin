@@ -230,6 +230,7 @@ in
     nixos-generators
 
     # Development tools
+    tmux
     nodejs # Node.js runtime (was: node)
     bun # Fast JavaScript runtime and package manager
     # haskell-language-server
@@ -283,6 +284,13 @@ in
   home.file.".claude/CLAUDE.md".text = import ./lib/expand-template.nix { inherit lib; } {
     templateScope = ./prompt;
     template = ./prompt/claude-code.md;
+  };
+
+  # Manage Claude Code settings
+  home.file.".claude/settings.json".text = builtins.toJSON {
+    env = {
+      CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
+    };
   };
 
   # Manage Cursor Rules
