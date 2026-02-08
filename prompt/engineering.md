@@ -890,3 +890,8 @@ ghcの言語拡張は `.hs` ファイルではなく `.cabal` ファイルに書
 ### Veteran Engineer's Note:
 **"Code is not instructions; it is a description of reality."**
 （コードは命令ではない。それは現実の記述である。）
+
+### SSH key の命名について(重要)
+SSH key の命名規則を以下のように定めます。これにより、キーの管理と識別が容易になります。
+- 命名規則: `<プロジェクト名>-<役割>-<人名>-<コンピューター名>-<日付>.pub`
+  - 例: `myapp-deployment-yui-macbook-pro-m3max-20240601.pub`
