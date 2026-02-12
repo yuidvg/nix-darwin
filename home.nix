@@ -274,30 +274,44 @@ in
 
   ];
 
-  # Manage Antigravity prompt using generic template expansion
-  home.file.".gemini/GEMINI.md".text = import ./lib/expand-template.nix { inherit lib; } {
-    templateScope = ./prompt;
-    template = ./prompt/antigravity.md;
-  };
-
-  # Manage Claude Code prompt
-  home.file.".claude/CLAUDE.md".text = import ./lib/expand-template.nix { inherit lib; } {
-    templateScope = ./prompt;
-    template = ./prompt/claude-code.md;
-  };
-
-  # Manage Claude Code settings
-  home.file.".claude/settings.json".text = builtins.toJSON {
-    env = {
-      CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
+  # Managed dotfiles (prompts, settings, skills)
+  home.file = {
+    # Gemini
+    ".gemini/GEMINI.md".text = import ./lib/expand-template.nix { inherit lib; } {
+      templateScope = ./prompt;
+      template = ./prompt/antigravity.md;
     };
-  };
 
-  # Manage Cursor Rules
-  home.file.".cursorrules".text = import ./lib/expand-template.nix { inherit lib; } {
-    templateScope = ./prompt;
-    template = ./prompt/cursor.md;
-  };
+    # Claude Code
+    ".claude/CLAUDE.md".text = import ./lib/expand-template.nix { inherit lib; } {
+      templateScope = ./prompt;
+      template = ./prompt/claude-code/claude.md;
+    };
+    ".claude/settings.json".text = builtins.toJSON {
+      env = {
+        CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
+      };
+    };
+
+    # Cursor
+    ".cursorrules".text = import ./lib/expand-template.nix { inherit lib; } {
+      templateScope = ./prompt;
+      template = ./prompt/cursor.md;
+    };
+  }
+  // (
+    let
+      skillsDir = ./prompt/claude-code/skills;
+    in
+    builtins.listToAttrs (
+      map (filename: {
+        name = ".claude/skills/${lib.removeSuffix ".md" filename}/SKILL.md";
+        value = {
+          source = skillsDir + "/${filename}";
+        };
+      }) (builtins.filter (f: lib.hasSuffix ".md" f) (builtins.attrNames (builtins.readDir skillsDir)))
+    )
+  );
 
   # Programs configuration
   programs = {

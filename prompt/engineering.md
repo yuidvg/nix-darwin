@@ -896,4 +896,3 @@ SSH key の命名規則を以下のように定めます。これにより、キ
 - 命名規則: `<プロジェクト名>-<役割>-<人名>-<コンピューター名>-<日付>.pub`
   - 例: `myapp-deployment-yui-macbook-pro-m3max-20240601.pub`
 
-@[nixos-webapp-deployment-guide]

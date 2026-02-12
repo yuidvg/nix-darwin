@@ -1,0 +1,1 @@
+@[declarative-web-deployment]
