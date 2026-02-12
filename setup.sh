@@ -28,7 +28,7 @@ username="$(prompt_with_default 'Username' "$default_username")"
 hostname_val="$(prompt_with_default 'Hostname' "$default_hostname")"
 git_name="$(prompt_with_default 'Git name' "$default_git_name")"
 git_email="$(prompt_with_default 'Git email' "$default_git_email")"
-target_dir="$(prompt_with_default 'Target directory' "$HOME/nix-config")"
+target_dir="$(prompt_with_default 'Target directory' "/private/etc/nix-darwin")"
 
 # --- 2. Age key ---
 age_key_dir="$HOME/.config/sops/age"
@@ -61,7 +61,11 @@ if [[ -d "$target_dir/.git" ]]; then
 fi
 
 # --- 5. Generate files ---
-mkdir -p "$target_dir"
+# /private/etc requires root; create dir and hand ownership to current user
+if [[ ! -d "$target_dir" ]]; then
+  sudo mkdir -p "$target_dir"
+  sudo chown "$(whoami)" "$target_dir"
+fi
 
 # flake.nix
 cat > "$target_dir/flake.nix" << FLAKE
