@@ -202,6 +202,58 @@
               TEMPLATES=${./templates}
             '' + builtins.readFile ./setup.sh;
           };
+
+          # Disposable test: nix run .#test-setup
+          packages.test-setup = pkgs.writeShellApplication {
+            name = "test-setup";
+            runtimeInputs = with pkgs; [
+              git
+              nix
+            ];
+            text = ''
+              WORKDIR=$(mktemp -d)
+              trap 'rm -rf "$WORKDIR"' EXIT
+
+              export HOME="$WORKDIR/home"
+              mkdir -p "$HOME"
+
+              TARGET="$WORKDIR/nix-darwin"
+              mkdir -p "$TARGET"
+
+              printf '%s\n' \
+                "testuser" \
+                "Test-Mac" \
+                "Test User" \
+                "test@example.com" \
+                "$TARGET" \
+                "" \
+                "" \
+                "" \
+              | ${self'.packages.setup}/bin/setup
+
+              echo ""
+              echo "--- Validating ---"
+
+              for f in flake.nix .sops.yaml secrets.yaml .gitignore apply; do
+                [[ -f "$TARGET/$f" ]] && echo "OK: $f exists" || { echo "FAIL: $f missing"; exit 1; }
+              done
+
+              nix-instantiate --parse "$TARGET/flake.nix" > /dev/null
+              echo "OK: flake.nix parses as valid Nix"
+
+              grep -q "sops" "$TARGET/secrets.yaml"
+              echo "OK: secrets.yaml is sops-encrypted"
+
+              [[ -x "$TARGET/apply" ]]
+              echo "OK: apply is executable"
+
+              git -C "$TARGET" log --oneline
+              echo "OK: git repository initialized"
+
+              echo ""
+              echo "=== All tests passed ==="
+            '';
+          };
         };
 
       flake = {
