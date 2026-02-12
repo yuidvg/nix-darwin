@@ -291,6 +291,7 @@ in
       env = {
         CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
       };
+      teammateMode = "tmux";
     };
 
     # Cursor
@@ -299,19 +300,14 @@ in
       template = ./prompt/cursor.md;
     };
   }
-  // (
-    let
-      skillsDir = ./prompt/claude-code/skills;
-    in
-    builtins.listToAttrs (
-      map (filename: {
-        name = ".claude/skills/${lib.removeSuffix ".md" filename}/SKILL.md";
-        value = {
-          source = skillsDir + "/${filename}";
-        };
-      }) (builtins.filter (f: lib.hasSuffix ".md" f) (builtins.attrNames (builtins.readDir skillsDir)))
-    )
-  );
+  // (let
+    skillsDir = ./prompt/claude-code/skills;
+    entries = builtins.readDir skillsDir;
+  in builtins.listToAttrs (map (name: {
+    name = ".claude/skills/${name}";
+    value = { source = skillsDir + "/${name}"; };
+  }) (builtins.filter (name: entries.${name} == "directory")
+    (builtins.attrNames entries))));
 
   # Programs configuration
   programs = {
