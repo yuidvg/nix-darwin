@@ -113,6 +113,16 @@ secrets.yaml.plain
 .DS_Store
 GITIGNORE
 
+# apply
+cat > "$target_dir/apply" << 'APPLY'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+nix flake update
+sudo darwin-rebuild switch --flake .
+APPLY
+chmod +x "$target_dir/apply"
+
 # --- 6. Git init ---
 git -C "$target_dir" init
 git -C "$target_dir" add -A
@@ -124,4 +134,4 @@ echo "Directory: $target_dir"
 echo ""
 echo "Next steps:"
 echo "  cd $target_dir"
-echo "  darwin-rebuild switch --flake ."
+echo "  ./apply"

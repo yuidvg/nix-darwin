@@ -38,20 +38,11 @@ nix run github:yuidvg/nix-darwin#setup
 | `secrets.yaml` | 暗号化済み API キー |
 | `.gitignore` | ビルド成果物の除外 |
 
-### 初回適用
+### 適用・アップデート
 
 ```bash
 cd /private/etc/nix-darwin
-darwin-rebuild switch --flake .
-```
-
-### アップデート
-
-上流の変更を取り込むには:
-
-```bash
-cd /private/etc/nix-darwin
-nix flake update && darwin-rebuild switch --flake .
+./apply
 ```
 
 ### カスタマイズ
