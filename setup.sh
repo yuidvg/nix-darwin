@@ -1,5 +1,5 @@
-# setup.sh — Team member bootstrap for nix-darwin
-# Packaged via writeShellApplication (set -euo pipefail is implicit)
+# setup.sh — Pure IO: prompts + substitution + side effects
+# Templates are injected via $TEMPLATES (Nix store path, set by writeShellApplication)
 
 # --- Helper ---
 prompt_with_default() {
@@ -13,6 +13,18 @@ prompt_with_default() {
   fi
   read -r result
   echo "${result:-$default}"
+}
+
+substitute() {
+  sed -e "s|@USERNAME@|$username|g" \
+      -e "s|@HOSTNAME@|$hostname_val|g" \
+      -e "s|@GIT_NAME@|$git_name|g" \
+      -e "s|@GIT_EMAIL@|$git_email|g" \
+      -e "s|@AGE_PUBLIC_KEY@|$age_public_key|g" \
+      -e "s|@OPENROUTER_KEY@|$openrouter_key|g" \
+      -e "s|@GEMINI_KEY@|$gemini_key|g" \
+      -e "s|@ANTHROPIC_KEY@|$anthropic_key|g" \
+      "$1"
 }
 
 # --- 1. Gather user info ---
@@ -60,68 +72,20 @@ if [[ -d "$target_dir/.git" ]]; then
   exit 1
 fi
 
-# --- 5. Generate files ---
-# /private/etc requires root; create dir and hand ownership to current user
+# --- 5. Generate files from templates ---
 if [[ ! -d "$target_dir" ]]; then
   sudo mkdir -p "$target_dir"
   sudo chown "$(whoami)" "$target_dir"
 fi
 
-# flake.nix
-cat > "$target_dir/flake.nix" << FLAKE
-{
-  description = "${username}'s nix-darwin configuration";
-  inputs.nix-darwin-upstream.url = "github:yuidvg/nix-darwin";
-  outputs = { nix-darwin-upstream, ... }: {
-    darwinConfigurations."${hostname_val}" = nix-darwin-upstream.lib.mkSystem {
-      userConfig = {
-        username = "${username}";
-        hostname = "${hostname_val}";
-        gitName = "${git_name}";
-        gitEmail = "${git_email}";
-      };
-      secretsFile = ./secrets.yaml;
-      # extraHomeModules = [];
-      # extraDarwinModules = [];
-    };
-  };
-}
-FLAKE
-
-# .sops.yaml
-cat > "$target_dir/.sops.yaml" << SOPS
-creation_rules:
-  - path_regex: secrets\\.yaml\$
-    age: >-
-      ${age_public_key}
-SOPS
-
-# secrets.yaml (plaintext → encrypt)
-cat > "$target_dir/secrets.yaml" << SECRETS
-openrouter_api_key: "${openrouter_key}"
-gemini_api_key: "${gemini_key}"
-anthropic_api_key: "${anthropic_key}"
-SECRETS
+substitute "$TEMPLATES/flake.nix.template" > "$target_dir/flake.nix"
+substitute "$TEMPLATES/sops.yaml.template" > "$target_dir/.sops.yaml"
+substitute "$TEMPLATES/secrets.yaml.template" > "$target_dir/secrets.yaml"
+cp "$TEMPLATES/gitignore" "$target_dir/.gitignore"
+cp "$TEMPLATES/apply" "$target_dir/apply"
+chmod +x "$target_dir/apply"
 
 SOPS_AGE_KEY_FILE="$age_key_file" sops --encrypt --in-place "$target_dir/secrets.yaml"
-
-# .gitignore
-cat > "$target_dir/.gitignore" << 'GITIGNORE'
-result
-result-*
-secrets.yaml.plain
-.DS_Store
-GITIGNORE
-
-# apply
-cat > "$target_dir/apply" << 'APPLY'
-#!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")"
-nix flake update
-sudo darwin-rebuild switch --flake .
-APPLY
-chmod +x "$target_dir/apply"
 
 # --- 6. Git init ---
 git -C "$target_dir" init

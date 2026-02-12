@@ -198,7 +198,9 @@
               sops
               git
             ];
-            text = builtins.readFile ./setup.sh;
+            text = ''
+              TEMPLATES=${./templates}
+            '' + builtins.readFile ./setup.sh;
           };
         };
 
