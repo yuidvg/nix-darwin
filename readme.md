@@ -103,6 +103,63 @@ echo $GEMINI_API_KEY
 nix run nixpkgs#sops -- secrets.yaml
 ```
 
+## チームメンバー向けクイックスタート
+
+上流リポを Flake input として参照する最小の個人リポを自動生成する。
+Fork やマージ衝突は発生しない。
+
+### ワンコマンドセットアップ
+
+Nix がインストール済みであれば、以下のコマンドだけで個人リポが生成される:
+
+```bash
+nix run github:yuidvg/nix-darwin#setup
+```
+
+対話形式で username / hostname / Git 情報 / API キーを入力すると、
+`~/nix-config` に以下が生成される:
+
+| ファイル | 内容 |
+|---|---|
+| `flake.nix` | 上流を input として参照 + 個人の userConfig |
+| `.sops.yaml` | 自分の age 公開鍵 |
+| `secrets.yaml` | 暗号化済み API キー |
+| `.gitignore` | ビルド成果物の除外 |
+
+### 初回適用
+
+```bash
+cd ~/nix-config
+darwin-rebuild switch --flake .
+```
+
+### アップデート
+
+上流の変更を取り込むには:
+
+```bash
+cd ~/nix-config
+nix flake update && darwin-rebuild switch --flake .
+```
+
+### カスタマイズ
+
+`flake.nix` の `mkSystem` 呼び出しに `extraHomeModules` / `extraDarwinModules` を追加することで、
+上流に手を加えずに個人設定を拡張できる:
+
+```nix
+darwinConfigurations."my-host" = nix-darwin-upstream.lib.mkSystem {
+  userConfig = { ... };
+  secretsFile = ./secrets.yaml;
+  extraHomeModules = [
+    ./my-extra-home.nix  # 個人の Home Manager モジュール
+  ];
+  extraDarwinModules = [
+    ./my-extra-darwin.nix  # 個人の Darwin モジュール
+  ];
+};
+```
+
 ## 開発環境
 
 このリポジトリ自体のメンテナンスや Haskell スクリプト開発のための環境も Nix で定義されている。

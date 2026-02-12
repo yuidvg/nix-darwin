@@ -30,59 +30,17 @@
     }:
     let
       # ==========================================
-      # 🛠️ USER CONFIGURATION (Single Source of Truth)
+      # Reusable system builder (exported as lib.mkSystem)
       # ==========================================
-      userConfig = {
-        username = "yui"; # ユーザー名 (whoami)
-        hostname = "Yuis-MacBook-Pro"; # ホスト名 (scutil --get LocalHostName)
-        gitName = "Yui Nishimura"; # Git Name
-        gitEmail = "nisshi.yui79@gmail.com"; # Git Email
-        # identityFile = "/Users/yui/.ssh/id_ed25519"; # (Optional: Future use)
-      };
-    in
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [
-        "aarch64-darwin"
-        "x86_64-darwin"
-      ];
-      imports = [ inputs.haskell-flake.flakeModule ];
-
-      perSystem =
+      mkSystem =
         {
-          self',
-          pkgs,
-          config,
-          ...
+          userConfig,
+          secretsFile,
+          extraHomeModules ? [ ],
+          extraDarwinModules ? [ ],
+          system ? "aarch64-darwin",
         }:
-        {
-          # Haskell Configuration via haskell-flake
-          haskellProjects.default = {
-            # The scripts directory containing the .cabal file
-            projectRoot = ./scripts;
-
-            devShell = {
-              enable = true;
-              tools = hp: {
-                haskell-language-server = hp.haskell-language-server;
-                fourmolu = hp.fourmolu;
-                cabal-gild = pkgs.haskellPackages.cabal-gild;
-              };
-              hlsCheck.enable = true;
-              hoogle = false;
-            };
-          };
-
-          # Default devShell
-          # devShells.default is automatically defined by haskell-flake
-
-          # Formatter for the flake itself
-          formatter = pkgs.nixfmt;
-        };
-
-      flake = {
-        # Darwin configurations
-        darwinConfigurations."${userConfig.hostname}" = nix-darwin.lib.darwinSystem {
-          # Inject userConfig into all modules (Darwin & Home Manager)
+        nix-darwin.lib.darwinSystem {
           specialArgs = {
             inherit userConfig;
           };
@@ -133,7 +91,7 @@
                 system.stateVersion = 6;
 
                 # The platform the configuration will be used on.
-                nixpkgs.hostPlatform = "aarch64-darwin";
+                nixpkgs.hostPlatform = system;
 
                 ## Darwin Configurations
                 # Allow unfree packages
@@ -172,19 +130,86 @@
               home-manager.useGlobalPkgs = true;
               home-manager.useUserPackages = true;
               home-manager.backupFileExtension = "backup";
-              # Explicitly inject userConfig into Home Manager modules
+              # Explicitly inject userConfig and secretsFile into Home Manager modules
               home-manager.extraSpecialArgs = {
-                inherit userConfig;
+                inherit userConfig secretsFile;
               };
               home-manager.users.${userConfig.username} = {
                 imports = [
                   ./home.nix
                   inputs.mac-app-util.homeManagerModules.default
                   inputs.sops-nix.homeManagerModules.sops
-                ];
+                ] ++ extraHomeModules;
               };
             }
-          ];
+          ] ++ extraDarwinModules;
+        };
+
+      # ==========================================
+      # Author's configuration
+      # ==========================================
+      userConfig = {
+        username = "yui";
+        hostname = "Yuis-MacBook-Pro";
+        gitName = "Yui Nishimura";
+        gitEmail = "nisshi.yui79@gmail.com";
+      };
+    in
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+      imports = [ inputs.haskell-flake.flakeModule ];
+
+      perSystem =
+        {
+          self',
+          pkgs,
+          config,
+          ...
+        }:
+        {
+          # Haskell Configuration via haskell-flake
+          haskellProjects.default = {
+            # The scripts directory containing the .cabal file
+            projectRoot = ./scripts;
+
+            devShell = {
+              enable = true;
+              tools = hp: {
+                haskell-language-server = hp.haskell-language-server;
+                fourmolu = hp.fourmolu;
+                cabal-gild = pkgs.haskellPackages.cabal-gild;
+              };
+              hlsCheck.enable = true;
+              hoogle = false;
+            };
+          };
+
+          # Formatter for the flake itself
+          formatter = pkgs.nixfmt;
+
+          # Team setup script: nix run github:yuidvg/nix-darwin#setup
+          packages.setup = pkgs.writeShellApplication {
+            name = "setup";
+            runtimeInputs = with pkgs; [
+              age
+              sops
+              git
+            ];
+            text = builtins.readFile ./setup.sh;
+          };
+        };
+
+      flake = {
+        # Export mkSystem for downstream flakes
+        lib = { inherit mkSystem; };
+
+        # Author's darwin configuration
+        darwinConfigurations."${userConfig.hostname}" = mkSystem {
+          inherit userConfig;
+          secretsFile = ./secrets.yaml;
         };
       };
     };

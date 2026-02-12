@@ -4,6 +4,7 @@
   lib,
   mac-app-util,
   userConfig,
+  secretsFile,
   ...
 }:
 let
@@ -121,7 +122,7 @@ let
     if [ -z "$GEMINI_API_KEY" ] && [ -r "${config.sops.secrets.gemini_api_key.path}" ]; then
       export GEMINI_API_KEY="$(cat ${config.sops.secrets.gemini_api_key.path})"
     fi
-    exec ${pkgs.deno}/bin/deno run --allow-all /private/etc/nix-darwin/scripts/gemini-rag.ts "$@"
+    exec ${pkgs.deno}/bin/deno run --allow-all ${./scripts/gemini-rag.ts} "$@"
   '';
 
   tar-map = pkgs.writers.writeHaskellBin "tar-map" {
@@ -191,7 +192,7 @@ in
     age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
 
     # 暗号化された secrets ファイル
-    defaultSopsFile = ./secrets.yaml;
+    defaultSopsFile = secretsFile;
 
     # 復号されたシークレットの定義
     secrets = {
@@ -292,6 +293,30 @@ in
         CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
       };
       teammateMode = "tmux";
+      permissions = {
+        allow = [
+          "Bash(grep:*)"
+          "Bash(find:*)"
+          "Bash(cat:*)"
+          "Bash(ls:*)"
+          "Bash(head:*)"
+          "Bash(tail:*)"
+          "Bash(wc:*)"
+          "Bash(sed:*)"
+          "Bash(rg:*)"
+          "Bash(fd:*)"
+          "Bash(tree:*)"
+          "Bash(echo:*)"
+          "Bash(git log*)"
+          "Bash(git diff*)"
+          "Bash(git status*)"
+          "Bash(git show*)"
+          "Read"
+          "Write"
+          "WebSearch"
+          "WebFetch"
+        ];
+      };
     };
 
     # Cursor
@@ -300,14 +325,20 @@ in
       template = ./prompt/cursor.md;
     };
   }
-  // (let
-    skillsDir = ./prompt/claude-code/skills;
-    entries = builtins.readDir skillsDir;
-  in builtins.listToAttrs (map (name: {
-    name = ".claude/skills/${name}";
-    value = { source = skillsDir + "/${name}"; };
-  }) (builtins.filter (name: entries.${name} == "directory")
-    (builtins.attrNames entries))));
+  // (
+    let
+      skillsDir = ./prompt/claude-code/skills;
+      entries = builtins.readDir skillsDir;
+    in
+    builtins.listToAttrs (
+      map (name: {
+        name = ".claude/skills/${name}";
+        value = {
+          source = skillsDir + "/${name}";
+        };
+      }) (builtins.filter (name: entries.${name} == "directory") (builtins.attrNames entries))
+    )
+  );
 
   # Programs configuration
   programs = {
