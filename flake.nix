@@ -206,10 +206,7 @@
           # Disposable test: nix run .#test-setup
           packages.test-setup = pkgs.writeShellApplication {
             name = "test-setup";
-            runtimeInputs = with pkgs; [
-              git
-              nix
-            ];
+            runtimeInputs = with pkgs; [ git ];
             text = ''
               WORKDIR=$(mktemp -d)
               trap 'rm -rf "$WORKDIR"' EXIT
@@ -238,11 +235,17 @@
                 [[ -f "$TARGET/$f" ]] && echo "OK: $f exists" || { echo "FAIL: $f missing"; exit 1; }
               done
 
-              nix-instantiate --parse "$TARGET/flake.nix" > /dev/null
-              echo "OK: flake.nix parses as valid Nix"
+              # Structure validation (no nix dependency needed)
+              grep -q 'darwinConfigurations."Test-Mac"' "$TARGET/flake.nix"
+              grep -q 'username = "testuser"' "$TARGET/flake.nix"
+              grep -q 'gitEmail = "test@example.com"' "$TARGET/flake.nix"
+              echo "OK: flake.nix contains expected substitutions"
 
               grep -q "sops" "$TARGET/secrets.yaml"
               echo "OK: secrets.yaml is sops-encrypted"
+
+              grep -q "age1" "$TARGET/.sops.yaml"
+              echo "OK: .sops.yaml contains age public key"
 
               [[ -x "$TARGET/apply" ]]
               echo "OK: apply is executable"
