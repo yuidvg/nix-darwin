@@ -168,6 +168,30 @@ let
     ];
   } (builtins.readFile ./scripts/urls2contents.hs);
 
+  # Pipeline composition: urls-under (expand) | urls2contents (fetch) | save-to-file
+  save-site = pkgs.writeScriptBin "save-site" ''
+    #!${pkgs.bash}/bin/bash
+    set -euo pipefail
+
+    : "''${1:?Usage: save-site <output-dir> [urls...]}"
+    OUTPUT_DIR="$1"; shift
+
+    # Expand each root URL to all discoverable sub-URLs, then deduplicate
+    ([ $# -gt 0 ] && printf '%s\n' "$@" || cat) \
+      | ${pkgs.findutils}/bin/xargs -I {} ${urls-under}/bin/urls-under {} 2>/dev/null \
+      | sort -u \
+      | while IFS= read -r url; do
+          # URL -> filesystem path: strip scheme, query, fragments; trailing / -> index
+          rel=$(echo "$url" | ${pkgs.gnused}/bin/sed 's|https\?://||; s|[?#].*||; s|/$|/index|')
+          dest="$OUTPUT_DIR/''${rel}.md"
+          mkdir -p "$(dirname "$dest")"
+          echo "[save-site] $url -> $dest" >&2
+          echo "$url" | ${urls2contents}/bin/urls2contents > "$dest"
+        done
+  '';
+
+
+
   download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
     #!${webScrapingPythonEnv}/bin/python
     ${builtins.readFile ./scripts/download-slack-channel-files.py}
@@ -252,6 +276,7 @@ in
     make-videos-under-15min
     urls-under
     urls2contents
+    save-site
     # webScrapingPythonEnv # This might be needed if trafilatura is not standalone
     python313Packages.trafilatura # Ensure trafilatura CLI is available
     download-slack-channel-files
