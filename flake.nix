@@ -115,6 +115,20 @@
                 };
                 security.pam.services.sudo_local.touchIdAuth = true;
 
+                # Block x.com system-wide
+                environment.etc.hosts.text = ''
+                  ##
+                  # Host Database
+                  ##
+                  127.0.0.1	localhost
+                  255.255.255.255	broadcasthost
+                  ::1             localhost
+
+                  # Block x.com
+                  127.0.0.1	x.com
+                  127.0.0.1	www.x.com
+                '';
+
                 # Homebrew configuration
                 homebrew = {
                   enable = true;
