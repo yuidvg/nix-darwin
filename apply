@@ -2,4 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 nix flake update
-sudo darwin-rebuild switch --flake .
+if command -v darwin-rebuild &>/dev/null; then
+  sudo darwin-rebuild switch --flake .
+else
+  nix run nix-darwin -- switch --flake .
+fi
