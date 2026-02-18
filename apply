@@ -5,5 +5,5 @@ nix flake update
 if command -v darwin-rebuild &>/dev/null; then
   sudo darwin-rebuild switch --flake .
 else
-  nix run nix-darwin -- switch --flake .
+  sudo nix run nix-darwin -- switch --flake .
 fi
