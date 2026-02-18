@@ -85,7 +85,7 @@ cp "$TEMPLATES/gitignore" "$target_dir/.gitignore"
 cp "$TEMPLATES/apply" "$target_dir/apply"
 chmod +x "$target_dir/apply"
 
-SOPS_AGE_KEY_FILE="$age_key_file" sops --encrypt --in-place "$target_dir/secrets.yaml"
+SOPS_AGE_KEY_FILE="$age_key_file" sops --config "$target_dir/.sops.yaml" --encrypt --in-place "$target_dir/secrets.yaml"
 
 # --- 6. Git init ---
 git -C "$target_dir" init
