@@ -56,6 +56,8 @@ fi
 age_public_key="$(age-keygen -y "$age_key_file")"
 echo ""
 echo "Age public key: $age_public_key"
+echo "This will be used to encrypt secrets with sops. Keep the private key safe!"
+echo "Private key file: $age_key_file"
 
 # --- 3. API keys (optional) ---
 echo ""
