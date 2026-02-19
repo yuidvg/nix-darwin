@@ -292,7 +292,46 @@
         "mac-app-util": "mac-app-util",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs_5",
+        "rust-overlay": "rust-overlay",
+        "screenpipe-src": "screenpipe-src",
         "sops-nix": "sops-nix"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1771470520,
+        "narHash": "sha256-PvytHcaYN5cPUll7FB70mXv1rRsIBRmu47fFfq3haxA=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "a1d4cc1f264c45d3745af0d2ca5e59d460e58777",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "screenpipe-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1770472882,
+        "narHash": "sha256-Wom62zlx9HRoqt6uUbGfCl+Y8aKm1cG1tBTDDDf8BqY=",
+        "owner": "screenpipe",
+        "repo": "screenpipe",
+        "rev": "98cd738693c7e7d3c0a0a2ce9683068717c34cae",
+        "type": "github"
+      },
+      "original": {
+        "owner": "screenpipe",
+        "ref": "v0.3.135",
+        "repo": "screenpipe",
+        "type": "github"
       }
     },
     "sops-nix": {

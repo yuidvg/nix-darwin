@@ -285,6 +285,9 @@ in
     gemini-rag
     tar-map
 
+    # Screen & Audio Recording
+    screenpipe
+
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
     yt-dlp # YouTube downloader (was: yt-dlp)

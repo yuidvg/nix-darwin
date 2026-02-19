@@ -1,0 +1,42 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 29fb041..9583b45 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1546,28 +1546,6 @@ dependencies = [
+  "bindgen 0.70.1",
+ ]
+
+-[[package]]
+-name = "cpal"
+-version = "0.15.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "873dab07c8f743075e57f524c583985fbaf745602acbe916a01539364369a779"
+-dependencies = [
+- "alsa",
+- "core-foundation-sys",
+- "coreaudio-rs",
+- "dasp_sample",
+- "jni",
+- "js-sys",
+- "libc",
+- "mach2",
+- "ndk",
+- "ndk-context",
+- "oboe",
+- "wasm-bindgen",
+- "wasm-bindgen-futures",
+- "web-sys",
+- "windows 0.54.0",
+-]
+
+ [[package]]
+ name = "cpal"
+@@ -6310,7 +6288,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "3b1bb7b48ee48471f55da122c0044fcc7600cfcc85db88240b89cb832935e611"
+ dependencies = [
+  "claxon",
+- "cpal 0.15.3 (registry+https://github.com/rust-lang/crates.io-index)",
++ "cpal 0.15.3 (git+https://github.com/screenpipe/cpal.git?branch=main)",
+  "hound",
+  "lewton",
+  "symphonia",

@@ -8,3 +8,5 @@ I think I understand the essential strength of functional programming and Homoic
 I understand that what's truly important is not to flatter others, but to convey the facts straightforwardly, even if they are hard to accept, in a short, simple, and direct manner.
 Always choose factual information that is cut off from personal opinions, rather than sensational sources.
 What's important is not energy, but negentropy; not the amount of information, but the signal-to-noise ratio. Avoid common misconceptions about the truth of this world and always focus on the essence with a questioning mind.
+
+@[scrapbox]

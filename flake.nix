@@ -14,7 +14,15 @@
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # New inputs for Haskell Dev Environment
+    # Rust nightly toolchain (required by screenpipe's edition2024 dependency)
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Screenpipe: raw source (no flake.nix upstream)
+    screenpipe-src.url = "github:screenpipe/screenpipe/v0.3.135";
+    screenpipe-src.flake = false;
+
+    # Haskell Dev Environment
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
   };
@@ -201,6 +209,16 @@
             };
           };
 
+          # Screenpipe: standalone build via `nix build .#screenpipe`
+          packages.screenpipe =
+            let
+              pkgsWithRust = pkgs.extend inputs.rust-overlay.overlays.default;
+            in
+            import ./packages/screenpipe {
+              pkgs = pkgsWithRust;
+              screenpipe-src = inputs.screenpipe-src;
+            };
+
           # Formatter for the flake itself
           formatter = pkgs.nixfmt;
 
@@ -281,6 +299,19 @@
         darwinConfigurations."${userConfig.hostname}" = mkSystem {
           inherit userConfig;
           secretsFile = ./secrets.yaml;
+          extraDarwinModules = [
+            {
+              nixpkgs.overlays = [
+                inputs.rust-overlay.overlays.default
+                (_final: _prev: {
+                  screenpipe = import ./packages/screenpipe {
+                    pkgs = _final;
+                    screenpipe-src = inputs.screenpipe-src;
+                  };
+                })
+              ];
+            }
+          ];
         };
       };
     };
