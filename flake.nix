@@ -123,20 +123,6 @@
                 };
                 security.pam.services.sudo_local.touchIdAuth = true;
 
-                # Block x.com system-wide
-                environment.etc.hosts.text = ''
-                  ##
-                  # Host Database
-                  ##
-                  127.0.0.1	localhost
-                  255.255.255.255	broadcasthost
-                  ::1             localhost
-
-                  # Block x.com
-                  127.0.0.1	x.com
-                  127.0.0.1	www.x.com
-                '';
-
                 # Homebrew configuration
                 homebrew = {
                   enable = true;
@@ -161,10 +147,12 @@
                   ./home.nix
                   inputs.mac-app-util.homeManagerModules.default
                   inputs.sops-nix.homeManagerModules.sops
-                ] ++ extraHomeModules;
+                ]
+                ++ extraHomeModules;
               };
             }
-          ] ++ extraDarwinModules;
+          ]
+          ++ extraDarwinModules;
         };
 
       # ==========================================
@@ -232,7 +220,8 @@
             ];
             text = ''
               TEMPLATES=${./templates}
-            '' + builtins.readFile ./setup.sh;
+            ''
+            + builtins.readFile ./setup.sh;
           };
 
           # Disposable test: nix run .#test-setup

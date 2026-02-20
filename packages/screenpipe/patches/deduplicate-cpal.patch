@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index 29fb041..9583b45 100644
+index 29fb041..44691a9 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -1546,28 +1546,6 @@ dependencies = [
@@ -40,3 +40,25 @@ index 29fb041..9583b45 100644
   "hound",
   "lewton",
   "symphonia",
+@@ -10445,8 +10423,4 @@ dependencies = [
+  "syn 2.0.100",
+  "winnow",
+ ]
+
+-[[patch.unused]]
+-name = "half"
+-version = "2.5.0"
+-source = "git+https://github.com/starkat99/half-rs.git?tag=v2.5.0#989d2700376b311a4765f43eaec8e9661bfa579a"
+diff --git a/Cargo.toml b/Cargo.toml
+index e1a6c7e..fb7dca0 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -50,8 +50,6 @@ reqwest-middleware = "0.4.1"
+ [patch.crates-io]
+ # enables chinese mirror (hf is banned in china) and native-tls
+ hf-hub = { git = "https://github.com/neo773/hf-hub", features = ["native-tls"] }
+-# Patch half to use a version compatible with both candle and ort
+-half = { git = "https://github.com/starkat99/half-rs.git", tag = "v2.5.0" }
+ 
+ [workspace.metadata.vcpkg]
+ git = "https://github.com/microsoft/vcpkg"
