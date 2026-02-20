@@ -190,8 +190,6 @@ let
         done
   '';
 
-
-
   download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
     #!${webScrapingPythonEnv}/bin/python
     ${builtins.readFile ./scripts/download-slack-channel-files.py}
@@ -286,7 +284,7 @@ in
     tar-map
 
     # Screen & Audio Recording
-    screenpipe
+    # screenpipe
 
     # System utilities
     fdupes # Find duplicate files (was: fdupes)
