@@ -38,7 +38,7 @@ import Options.Applicative
 import Protolude hiding (async, bracket, cancel, catch, try, wait)
 import System.Directory (copyFile, createDirectoryIfMissing, doesFileExist, getTemporaryDirectory, listDirectory, removeDirectoryRecursive)
 import System.FilePath (takeDirectory, takeFileName, (</>))
-import System.IO (BufferMode (..), Handle, hFlush, hSetBinaryMode, hSetBuffering)
+import System.IO (BufferMode (..), Handle, hClose, hFlush, hSetBinaryMode, hSetBuffering)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc, std_err, std_in, std_out, waitForProcess, withCreateProcess)
 import System.Timeout (timeout)
 
@@ -46,6 +46,7 @@ import System.Timeout (timeout)
 data Config = Config
   { cmdTemplate :: [[Char]],
     keepOriginal :: Bool,
+    stdioMode :: Bool,
     jobs :: Int,
     timeoutSec :: Int
   }
@@ -56,6 +57,7 @@ configParser =
   Config
     <$> many (strArgument (metavar "COMMAND_AND_ARGS..."))
     <*> switch (long "keep-structure" <> help "Maintain original directory structure for output files")
+    <*> switch (long "stdio" <> help "Pipe entry content via stdin/stdout instead of filesystem sandbox")
     <*> option
       auto
       ( long "jobs"
@@ -132,7 +134,8 @@ processEntriesParallel config entries = do
 
             -- Fork worker with guaranteed cleanup
             _ <- async $ flip finally (do QSem.signalQSem sem; atomically $ modifyTVar active (subtract 1)) $ do
-              result <- tryAny $ processSingleEntry config entry
+              let processEntry = if stdioMode config then processStdioEntry else processSingleEntry
+              result <- tryAny $ processEntry config entry
 
               case result of
                 Right newEntries ->
@@ -154,6 +157,45 @@ processEntriesParallel config entries = do
 
   -- Write final EOA (two 512-byte blocks of zeros)
   BL.hPut stdout (BL.replicate 1024 0)
+
+-- | Stdio mode: pipe entry content through command stdin/stdout.
+-- Preserves tar path (1:1 Functor semantics — no filesystem sandbox).
+processStdioEntry :: Config -> Tar.Entry -> IO [Tar.Entry]
+processStdioEntry config entry = do
+  let path = Tar.entryPath entry
+      content = case Tar.entryContent entry of
+        Tar.NormalFile c _ -> c
+        _ -> BL.empty
+      (cmd : args) = case cmdTemplate config of
+        [] -> ["cat"]
+        xs -> xs
+
+  logInfo $ "Processing (stdio): " <> T.pack path
+
+  let cp = (proc cmd args)
+        { std_in = CreatePipe
+        , std_out = CreatePipe
+        , std_err = Inherit
+        }
+
+  result <- timeout (timeoutSec config * 1000000) $
+    withCreateProcess cp $ \(Just stdinH) (Just stdoutH) _ ph -> do
+      -- Async writer to prevent deadlock on full pipe buffer
+      writer <- async $ BL.hPut stdinH content >> hClose stdinH
+      -- Strict read to force consumption before handle cleanup
+      output <- BL.fromStrict <$> BS.hGetContents stdoutH
+      wait writer
+      exitCode <- waitForProcess ph
+      case exitCode of
+        ExitSuccess -> return output
+        ExitFailure n -> throwString $ "Command exited with code " <> show n
+
+  case result of
+    Nothing -> throwString "Timeout"
+    Just output ->
+      case Tar.toTarPath False path of
+        Right tp -> return [Tar.fileEntry tp output]
+        Left e -> throwString $ "Invalid tar path: " <> e
 
 processSingleEntry :: Config -> Tar.Entry -> IO [Tar.Entry]
 processSingleEntry config entry = do

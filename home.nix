@@ -155,39 +155,41 @@ let
     ${builtins.readFile ./scripts/urls-under.py}
   '';
 
-  urls2contents = pkgs.writers.writeHaskellBin "urls2contents" {
+  url2content = pkgs.writers.writeHaskellBin "url2content" {
     libraries = with pkgs.haskellPackages; [
       req
-      scalpel # Keep lazily if needed, but trafilatura is preferred
-      optparse-applicative
       text
       protolude
       safe-exceptions
       process
       modern-uri
     ];
-  } (builtins.readFile ./scripts/urls2contents.hs);
+  } (builtins.readFile ./scripts/url2content.hs);
 
-  # Pipeline composition: urls-under (expand) | urls2contents (fetch) | save-to-file
+  lines2tar = pkgs.writers.writeHaskellBin "lines2tar" {
+    libraries = with pkgs.haskellPackages; [
+      protolude
+      text
+      tar
+      bytestring
+    ];
+  } (builtins.readFile ./scripts/lines2tar.hs);
+
+  # Pipeline: urls-under (1→N) | lines2tar (Lines→Tar) | tar-map --stdio (Functor) | tar xf -
   save-site = pkgs.writeScriptBin "save-site" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
     : "''${1:?Usage: save-site <output-dir> [urls...]}"
     OUTPUT_DIR="$1"; shift
+    mkdir -p "$OUTPUT_DIR"
 
-    # Expand each root URL to all discoverable sub-URLs, then deduplicate
     ([ $# -gt 0 ] && printf '%s\n' "$@" || cat) \
       | ${pkgs.findutils}/bin/xargs -I {} ${urls-under}/bin/urls-under {} 2>/dev/null \
       | sort -u \
-      | while IFS= read -r url; do
-          # URL -> filesystem path: strip scheme, query, fragments; trailing / -> index
-          rel=$(echo "$url" | ${pkgs.gnused}/bin/sed 's|https\?://||; s|[?#].*||; s|/$|/index|')
-          dest="$OUTPUT_DIR/''${rel}.md"
-          mkdir -p "$(dirname "$dest")"
-          echo "[save-site] $url -> $dest" >&2
-          echo "$url" | ${urls2contents}/bin/urls2contents > "$dest"
-        done
+      | ${lines2tar}/bin/lines2tar \
+      | ${tar-map}/bin/tar-map --stdio --jobs 4 --timeout 300 -- ${url2content}/bin/url2content \
+      | ${pkgs.gnutar}/bin/tar xf - -C "$OUTPUT_DIR"
   '';
 
   download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
@@ -273,7 +275,8 @@ in
     markthesedown
     make-videos-under-15min
     urls-under
-    urls2contents
+    url2content
+    lines2tar
     save-site
     # webScrapingPythonEnv # This might be needed if trafilatura is not standalone
     python313Packages.trafilatura # Ensure trafilatura CLI is available
