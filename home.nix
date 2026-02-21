@@ -363,16 +363,19 @@ in
   }
   // (
     let
+      expandTemplatesDir = import ./lib/expand-templates-dir.nix { inherit pkgs lib; };
       skillsDir = ./prompt/claude-code/skills;
       entries = builtins.readDir skillsDir;
+      skillNames = builtins.filter (name: entries.${name} == "directory") (builtins.attrNames entries);
     in
     builtins.listToAttrs (
       map (name: {
         name = ".claude/skills/${name}";
-        value = {
-          source = skillsDir + "/${name}";
+        value.source = expandTemplatesDir {
+          templateScope = ./prompt;
+          src = skillsDir + "/${name}";
         };
-      }) (builtins.filter (name: entries.${name} == "directory") (builtins.attrNames entries))
+      }) skillNames
     )
   );
 

@@ -1,1 +1,1 @@
-@[declarative-web-deployment]
+@[nixos-webapp-deployment-guide]
