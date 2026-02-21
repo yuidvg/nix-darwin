@@ -175,21 +175,20 @@ let
     ];
   } (builtins.readFile ./scripts/lines2tar.hs);
 
-  # Pipeline: urls-under (1→N) | lines2tar (Lines→Tar) | tar-map --stdio (Functor) | tar xf -
+  # Pipeline: urls-under (1→N) | lines2tar (Lines→Tar) | tar-map --stdio (Functor) | tar2dir (Sink)
   save-site = pkgs.writeScriptBin "save-site" ''
     #!${pkgs.bash}/bin/bash
     set -euo pipefail
 
     : "''${1:?Usage: save-site <output-dir> [urls...]}"
     OUTPUT_DIR="$1"; shift
-    mkdir -p "$OUTPUT_DIR"
 
     ([ $# -gt 0 ] && printf '%s\n' "$@" || cat) \
       | ${pkgs.findutils}/bin/xargs -I {} ${urls-under}/bin/urls-under {} 2>/dev/null \
       | sort -u \
       | ${lines2tar}/bin/lines2tar \
       | ${tar-map}/bin/tar-map --stdio --jobs 4 --timeout 300 -- ${url2content}/bin/url2content \
-      | ${pkgs.gnutar}/bin/tar xf - -C "$OUTPUT_DIR"
+      | ${tar2dir}/bin/tar2dir "$OUTPUT_DIR"
   '';
 
   download-slack-channel-files = pkgs.writeScriptBin "download-slack-channel-files" ''
@@ -205,6 +204,13 @@ let
   cat-all = pkgs.writeScriptBin "cat-all" ''
     #!${pkgs.python313}/bin/python
     ${builtins.readFile ./scripts/cat-all.py}
+  '';
+
+  # Tar stream sink: stdin tar → filesystem directory (with mkdir -p)
+  tar2dir = pkgs.writeScriptBin "tar2dir" ''
+    #!${pkgs.bash}/bin/bash
+    : "''${1:?Usage: tar2dir <output-dir>}"
+    mkdir -p "$1" && exec ${pkgs.gnutar}/bin/tar xf - -C "$1"
   '';
 in
 {
@@ -277,6 +283,7 @@ in
     urls-under
     url2content
     lines2tar
+    tar2dir
     save-site
     # webScrapingPythonEnv # This might be needed if trafilatura is not standalone
     python313Packages.trafilatura # Ensure trafilatura CLI is available

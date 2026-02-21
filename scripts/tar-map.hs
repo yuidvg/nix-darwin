@@ -137,13 +137,13 @@ processEntriesParallel config entries = do
               let processEntry = if stdioMode config then processStdioEntry else processSingleEntry
               result <- tryAny $ processEntry config entry
 
-              case result of
-                Right newEntries ->
-                  withMVar outLock $ \_ ->
+              withMVar outLock $ \_ ->
+                case result of
+                  Right newEntries -> do
+                    logInfo $ "Done: " <> T.pack (Tar.entryPath entry)
                     writeStrippingEOA stdout (Tar.write newEntries)
-                Left e ->
-                  withMVar outLock $ \_ ->
-                    logInfo $ "Error processing " <> T.pack (Tar.entryPath entry) <> ": " <> show e
+                  Left e ->
+                    logInfo $ "Error: " <> T.pack (Tar.entryPath entry) <> ": " <> show e
 
             loop next
           _ -> loop next
@@ -169,8 +169,6 @@ processStdioEntry config entry = do
       (cmd : args) = case cmdTemplate config of
         [] -> ["cat"]
         xs -> xs
-
-  logInfo $ "Processing (stdio): " <> T.pack path
 
   let cp = (proc cmd args)
         { std_in = CreatePipe
@@ -203,8 +201,6 @@ processSingleEntry config entry = do
       content = case Tar.entryContent entry of
         Tar.NormalFile c _ -> c
         _ -> BL.empty
-
-  logInfo $ "Processing: " <> T.pack path
 
   withSystemTempDirectory "tm" $ \tmpDir -> do
     let workPath = tmpDir </> path
