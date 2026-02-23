@@ -1,4 +1,4 @@
-# NixOS Web Application Deployment Guide
+# SKTC Deployment Architecture
 
 **SOPS + KMS + Terraform + Colmena による宣言的デプロイアーキテクチャ**
 
