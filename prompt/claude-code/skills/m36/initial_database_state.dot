@@ -1,5 +1,0 @@
-digraph G {
- base[label="base transaction",shape=rectangle];
- new[label="mutable database context"];
- new -> base;
-}
