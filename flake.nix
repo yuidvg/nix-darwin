@@ -5,20 +5,21 @@
 
   outputs =
     { nix-darwin-upstream, ... }:
-    {
-      darwinConfigurations."Yuis-MacBook-Pro" = nix-darwin-upstream.lib.mkSystem {
-        userConfig = {
-          username = "yui";
-          hostname = "Yuis-MacBook-Pro";
-          gitName = "Yui Nishimura";
-          gitEmail = "nisshi.yui79@gmail.com";
-        };
-        secretsFile = ./secrets.yaml;
-        modules = [
-          ({ userConfig, ... }: {
-            home-manager.users.${userConfig.username}.imports = [ ./personal.nix ];
-          })
-        ];
+    nix-darwin-upstream.lib.mkDownstreamFlake {
+      userConfig = {
+        username = "yui";
+        hostname = "Yuis-MacBook-Pro";
+        gitName = "Yui Nishimura";
+        gitEmail = "nisshi.yui79@gmail.com";
       };
+      secretsFile = ./secrets.yaml;
+      modules = [
+        (
+          { userConfig, ... }:
+          {
+            home-manager.users.${userConfig.username}.imports = [ ./personal.nix ];
+          }
+        )
+      ];
     };
 }
