@@ -232,11 +232,11 @@
         "sops-nix": "sops-nix"
       },
       "locked": {
-        "lastModified": 1772530738,
-        "narHash": "sha256-S+bvdP2CbhHD5QS0Cgi/m+32/jG9aorKyp3tHsZ03YU=",
+        "lastModified": 1772532496,
+        "narHash": "sha256-KAnFumE0Y5HxKWfFk4bGKlwxose5eCGwxzWh/VVbrJ0=",
         "owner": "plural-reality",
         "repo": "nix-darwin",
-        "rev": "91286d10aa91f696b0bbe9611528ebd7c68a420e",
+        "rev": "db87a455ad0406066e9d2101171cfa2346986207",
         "type": "github"
       },
       "original": {
