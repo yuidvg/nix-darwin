@@ -14,8 +14,10 @@
           gitEmail = "nisshi.yui79@gmail.com";
         };
         secretsFile = ./secrets.yaml;
-        extraHomeModules = [
-          ./personal.nix
+        modules = [
+          ({ userConfig, ... }: {
+            home-manager.users.${userConfig.username}.imports = [ ./personal.nix ];
+          })
         ];
       };
     };
