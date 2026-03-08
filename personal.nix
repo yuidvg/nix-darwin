@@ -24,8 +24,6 @@ in
 
   # Personal packages
   home.packages = with pkgs; [
-    codex
-    openvpn
     hidden-bar
     utm
     transmission_4
