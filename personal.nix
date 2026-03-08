@@ -27,10 +27,13 @@ in
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     mkdir -p "$HOME/.codex"
     touch "$HOME/.codex/config.toml"
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string '.model' 'gpt-5.3-codex'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string '.model_reasoning_effort' 'xhigh'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string '.service_tier' 'fast'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t bool '.features.multi_agent' 'true'
+    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'gpt-5.3-codex' '.model'
+    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'xhigh' '.model_reasoning_effort'
+    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'fast' '.service_tier'
+    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'openai' '.model_provider'
+    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t bool -v 'true' '.features.multi_agent'
+    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'chatgpt' '.preferred_auth_method'
+    ${pkgs.dasel}/bin/dasel delete -f "$HOME/.codex/config.toml" '.model_providers.openai-env' 2>/dev/null || true
   '';
 
   # Personal packages
