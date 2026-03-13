@@ -44,12 +44,18 @@ in
     gemini-rag
   ];
 
-  # Personal zsh config (ssh-agent, secrets loading)
-  programs.zsh.initContent = lib.mkOrder 1100 ''
-    # ssh agent
-    ssh-add >/dev/null 2>/dev/null
-    ssh-add --apple-use-keychain ~/.ssh/github >/dev/null 2>/dev/null
+  home.sessionPath = [
+    "/Applications/Docker.app/Contents/Resources/bin"
+  ];
 
+  programs.git.settings = {
+    core.sshCommand =
+      "ssh -o AddKeysToAgent=yes -o UseKeychain=yes -o IdentitiesOnly=yes -i $HOME/.ssh/github";
+    url."git@github.com:".insteadOf = "https://github.com/";
+  };
+
+  # Personal zsh config (secrets loading)
+  programs.zsh.initContent = lib.mkOrder 1100 ''
     # Load secrets from sops-nix
     [[ -r "${config.sops.secrets.openrouter_api_key.path}" ]] && \
       export OPENROUTER_API_KEY="$(cat ${config.sops.secrets.openrouter_api_key.path})"
