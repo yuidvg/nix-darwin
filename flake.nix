@@ -14,6 +14,18 @@
       };
       secretsFile = ./secrets.yaml;
       modules = [
+        # onnxruntime 1.23.2 test code fails with -Werror on macOS (nodiscard warning)
+        {
+          nixpkgs.overlays = [
+            (final: prev: {
+              pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
+                (pyFinal: pyPrev: {
+                  onnxruntime = pyPrev.onnxruntime.overrideAttrs (_: { doCheck = false; });
+                })
+              ];
+            })
+          ];
+        }
         (
           { userConfig, ... }:
           {

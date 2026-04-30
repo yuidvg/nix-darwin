@@ -23,17 +23,33 @@ in
     openai_api_key = { };
   };
 
-  # Codex CLI config (merge-apply: dasel put is idempotent, preserves user-added keys like [projects.*])
+  # Codex CLI config (merge-apply: grep out managed keys, prepend canonical values, preserve user-added keys)
   home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    CODEX_CONFIG="$HOME/.codex/config.toml"
     mkdir -p "$HOME/.codex"
-    touch "$HOME/.codex/config.toml"
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'gpt-5.3-codex' '.model'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'xhigh' '.model_reasoning_effort'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'fast' '.service_tier'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'openai' '.model_provider'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t bool -v 'true' '.features.multi_agent'
-    ${pkgs.dasel}/bin/dasel put -f "$HOME/.codex/config.toml" -t string -v 'chatgpt' '.preferred_auth_method'
-    ${pkgs.dasel}/bin/dasel delete -f "$HOME/.codex/config.toml" '.model_providers.openai-env' 2>/dev/null || true
+    touch "$CODEX_CONFIG"
+
+    # Strip managed keys + empty [model_providers.openai-env] section, keep everything else
+    ${pkgs.gnugrep}/bin/grep -v -E '^(model|model_reasoning_effort|service_tier|model_provider|preferred_auth_method)[[:space:]]*=' "$CODEX_CONFIG" \
+      | ${pkgs.gnugrep}/bin/grep -v -E '^\[model_providers\.openai-env\]' \
+      > "$CODEX_CONFIG.body" || true
+
+    {
+      echo 'model = "gpt-5.3-codex"'
+      echo 'model_reasoning_effort = "xhigh"'
+      echo 'service_tier = "fast"'
+      echo 'model_provider = "openai"'
+      echo 'preferred_auth_method = "chatgpt"'
+      echo
+      cat "$CODEX_CONFIG.body"
+    } > "$CODEX_CONFIG.tmp"
+    mv "$CODEX_CONFIG.tmp" "$CODEX_CONFIG"
+    rm -f "$CODEX_CONFIG.body"
+
+    # Ensure [features] section with multi_agent
+    if ! ${pkgs.gnugrep}/bin/grep -q '^\[features\]' "$CODEX_CONFIG"; then
+      printf '\n[features]\nmulti_agent = true\n' >> "$CODEX_CONFIG"
+    fi
   '';
 
   # Personal packages
@@ -43,6 +59,11 @@ in
     transmission_4
     gemini-rag
   ];
+
+  # Personal Claude Code skills
+  # Upstreamは ~/Developer/plural-reality/nix-darwin の prompt/claude-code/skills を使用。
+  # 個人固有のスキルはここで足す。upstream と同じパス規約（prompt/claude-code/skills/{name}/SKILL.md）。
+  home.file.".claude/skills/purchase-research".source = ./prompt/claude-code/skills/purchase-research;
 
   home.sessionPath = [
     "/Applications/Docker.app/Contents/Resources/bin"
