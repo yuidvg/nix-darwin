@@ -60,18 +60,15 @@ in
     gemini-rag
   ];
 
-  # Personal Claude Code skills
-  # Upstreamは ~/Developer/plural-reality/nix-darwin の prompt/claude-code/skills を使用。
-  # 個人固有のスキルはここで足す。upstream と同じパス規約（prompt/claude-code/skills/{name}/SKILL.md）。
-  home.file.".claude/skills/purchase-research".source = ./prompt/claude-code/skills/purchase-research;
+  # NOTE: purchase-research skill is now auto-enumerated by modules/claude-code.nix
+  # (single repo → prompt/claude-code/skills/ is the canonical source for all skills).
 
   home.sessionPath = [
     "/Applications/Docker.app/Contents/Resources/bin"
   ];
 
   programs.git.settings = {
-    core.sshCommand =
-      "ssh -o AddKeysToAgent=yes -o UseKeychain=yes -o IdentitiesOnly=yes -i $HOME/.ssh/github";
+    core.sshCommand = "ssh -o AddKeysToAgent=yes -o UseKeychain=yes -o IdentitiesOnly=yes -i $HOME/.ssh/github";
     url."git@github.com:".insteadOf = "https://github.com/";
   };
 
