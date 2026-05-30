@@ -23,34 +23,9 @@ in
     openai_api_key = { };
   };
 
-  # Codex CLI config (merge-apply: grep out managed keys, prepend canonical values, preserve user-added keys)
-  home.activation.codexConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    CODEX_CONFIG="$HOME/.codex/config.toml"
-    mkdir -p "$HOME/.codex"
-    touch "$CODEX_CONFIG"
-
-    # Strip managed keys + empty [model_providers.openai-env] section, keep everything else
-    ${pkgs.gnugrep}/bin/grep -v -E '^(model|model_reasoning_effort|service_tier|model_provider|preferred_auth_method)[[:space:]]*=' "$CODEX_CONFIG" \
-      | ${pkgs.gnugrep}/bin/grep -v -E '^\[model_providers\.openai-env\]' \
-      > "$CODEX_CONFIG.body" || true
-
-    {
-      echo 'model = "gpt-5.3-codex"'
-      echo 'model_reasoning_effort = "xhigh"'
-      echo 'service_tier = "fast"'
-      echo 'model_provider = "openai"'
-      echo 'preferred_auth_method = "chatgpt"'
-      echo
-      cat "$CODEX_CONFIG.body"
-    } > "$CODEX_CONFIG.tmp"
-    mv "$CODEX_CONFIG.tmp" "$CODEX_CONFIG"
-    rm -f "$CODEX_CONFIG.body"
-
-    # Ensure [features] section with multi_agent
-    if ! ${pkgs.gnugrep}/bin/grep -q '^\[features\]' "$CODEX_CONFIG"; then
-      printf '\n[features]\nmulti_agent = true\n' >> "$CODEX_CONFIG"
-    fi
-  '';
+  # Codex CLI config is managed centrally by modules/claude-code.nix
+  # (codexDefaults, tomlkit non-destructive merge). `model` is intentionally
+  # left unmanaged — set it ad hoc via codex /model; rebuilds won't clobber it.
 
   # Personal packages
   home.packages = with pkgs; [

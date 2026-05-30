@@ -228,9 +228,18 @@ let
     sandbox_mode = "danger-full-access";
     suppress_unstable_features_warning = true;
 
-    model = "gpt-5.5";
+    # `model` is intentionally unmanaged — it changes often and is set ad hoc
+    # (codex /model, manual edits). The tomlkit merge in `codexDefaults` is
+    # non-destructive, so the on-disk model value survives rebuilds.
     model_reasoning_effort = "xhigh";
+    service_tier = "fast";
+    model_provider = "openai";
+    preferred_auth_method = "chatgpt";
     personality = "pragmatic";
+
+    features = {
+      multi_agent = true;
+    };
 
     shell_environment_policy = {
       "inherit" = "core";
