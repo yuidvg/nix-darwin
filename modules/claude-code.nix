@@ -280,6 +280,54 @@ let
   codexManagedConfigFile = pkgs.writeText "codex-managed-config.json" (
     builtins.toJSON codexManagedConfig
   );
+
+  # Claude Code user settings — structural keys only.
+  # Volatile/interactive preferences (`model`, effort/`ultracode`) are
+  # intentionally NOT declared here, so `/model` and `/effort` persist and
+  # survive rebuilds. Same contract as the Codex `model` key above. These keys
+  # are projected via a non-destructive jq merge (`claudeSettings` activation)
+  # rather than a read-only `home.file` symlink, so Claude's own writes to
+  # settings.json are preserved instead of being clobbered (or blocked).
+  claudeSettingsManaged = {
+    env = sharedAgentEnv;
+    enableAutoMode = true;
+    skipDangerousModePermissionPrompt = true;
+    teammateMode = "tmux";
+    statusLine = {
+      type = "command";
+      command = "bash ${config.home.homeDirectory}/.claude/statusline-command.sh";
+    };
+    permissions = {
+      allow = [
+        "Bash(grep:*)"
+        "Bash(find:*)"
+        "Bash(cat:*)"
+        "Bash(ls:*)"
+        "Bash(head:*)"
+        "Bash(tail:*)"
+        "Bash(wc:*)"
+        "Bash(sed:*)"
+        "Bash(rg:*)"
+        "Bash(fd:*)"
+        "Bash(tree:*)"
+        "Bash(echo:*)"
+        "Bash(printf:*)"
+        "Bash(jq:*)"
+        "Bash(freee-call:*)"
+        "Bash(git log*)"
+        "Bash(git diff*)"
+        "Bash(git status*)"
+        "Bash(git show*)"
+        "Read"
+        "Write"
+        "WebSearch"
+        "WebFetch"
+      ];
+    };
+  };
+  claudeSettingsManagedFile = pkgs.writeText "claude-settings-managed.json" (
+    builtins.toJSON claudeSettingsManaged
+  );
 in
 {
   home.packages = [
@@ -293,47 +341,10 @@ in
       template = ../prompt/antigravity.md;
     };
 
-    ".claude/settings.json".text = builtins.toJSON {
-      # ultracode = xhigh effort + standing dynamic-workflow orchestration.
-      # Single canonical source for effort; replaces the old CLAUDE_CODE_EFFORT_LEVEL
-      # env var which used to override (and thus suppress) this setting.
-      ultracode = true;
-      env = sharedAgentEnv;
-      enableAutoMode = true;
-      skipDangerousModePermissionPrompt = true;
-      teammateMode = "tmux";
-      statusLine = {
-        type = "command";
-        command = "bash ${config.home.homeDirectory}/.claude/statusline-command.sh";
-      };
-      permissions = {
-        allow = [
-          "Bash(grep:*)"
-          "Bash(find:*)"
-          "Bash(cat:*)"
-          "Bash(ls:*)"
-          "Bash(head:*)"
-          "Bash(tail:*)"
-          "Bash(wc:*)"
-          "Bash(sed:*)"
-          "Bash(rg:*)"
-          "Bash(fd:*)"
-          "Bash(tree:*)"
-          "Bash(echo:*)"
-          "Bash(printf:*)"
-          "Bash(jq:*)"
-          "Bash(freee-call:*)"
-          "Bash(git log*)"
-          "Bash(git diff*)"
-          "Bash(git status*)"
-          "Bash(git show*)"
-          "Read"
-          "Write"
-          "WebSearch"
-          "WebFetch"
-        ];
-      };
-    };
+    # ~/.claude/settings.json is intentionally NOT declared here. It is a
+    # writable file that Claude mutates at runtime (/model, /effort, ...), so it
+    # cannot be a read-only symlink. Structural keys are merged in by the
+    # `claudeSettings` activation below (see `claudeSettingsManaged`).
 
     # Status line: the script referenced by statusLine.command above. Co-located
     # with settings.json so the command and the script it runs are one source of
@@ -373,6 +384,27 @@ in
   # so both CLI and Xcode Agent share the same commands/skills.
   # Xcode Agent ignores ~/.claude/commands/ and ~/.claude/skills/,
   # but reads from its own config dir.
+  # Claude Code user settings: non-destructive deep merge into the writable
+  # ~/.claude/settings.json. Structural keys (claudeSettingsManaged) are
+  # re-asserted on every rebuild; volatile keys Claude itself writes (model,
+  # effort/ultracode, ...) are preserved. Mirrors codexDefaults. Replaces the
+  # old read-only symlink, which blocked /model and /effort from persisting.
+  home.activation.claudeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    SETTINGS="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
+    # Migration: a prior generation symlinked this to the read-only Nix store.
+    # Drop that symlink so the merge below produces a writable real file.
+    [ -L "$SETTINGS" ] && rm -f "$SETTINGS"
+    if [ -f "$SETTINGS" ]; then
+      # `.[0] * .[1]`: deep-merge, managed (RHS) wins at conflicting leaves;
+      # any key only on disk (model, effort, ...) survives untouched.
+      ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$SETTINGS" ${claudeSettingsManagedFile} \
+        > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+    else
+      ${pkgs.jq}/bin/jq '.' ${claudeSettingsManagedFile} > "$SETTINGS"
+    fi
+  '';
+
   home.activation.claudeMcpServers = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     # Idempotent: replaces .mcpServers entirely (not deep-merge) so removals
     # from Nix propagate correctly. All other keys are preserved.
