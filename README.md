@@ -128,6 +128,30 @@ nix build .#darwinConfigurations."Yuis-MacBook-Pro".system
 | `scripts/` | Haskell/Python/Shell ソース |
 | `secrets.yaml`, `.sops.yaml` | sops-nix 暗号化 secrets |
 
+## LLM システムプロンプトの detach (脳を空にする)
+
+`modules/claude-code.nix` は本来、`prompt/` 配下の共有プロンプト
+(`engineering.md` / `unix-principal.md` 等) を各エージェントの常時
+システムプロンプトへ投影する。現在この**最終 wiring だけを detach**しており、
+投影先を空文字列にしている:
+
+| ファイル | 状態 |
+|---|---|
+| `~/.claude/CLAUDE.md` | 空 |
+| `~/.codex/AGENTS.md` | 空 |
+| `~/.gemini/GEMINI.md` | 空 |
+| `~/.cursorrules` | 空 |
+
+つまり Claude Code / Codex / Gemini / Cursor は、この repo からは常時
+システムプロンプトを注入されず、各ツールの素の挙動で動く。
+
+- **定義は温存**: `prompt/*.md` (本体・wrapper テンプレート) は一切変更していない。
+  skills / agents / commands / MCP / settings も無影響。
+- **再接続**: `mkAgentAttrs` の `{ "${instructionPath}".text = ""; }` を元の
+  `expandTemplate` 投影に戻せば再 wiring される (`instructionTemplate` は
+  agentProfiles に dormant な再接続ポイントとして残してある)。Gemini / Cursor は
+  `home.file` の該当 `.text = ""` を元に戻す。
+
 ## 開発
 
 ```bash

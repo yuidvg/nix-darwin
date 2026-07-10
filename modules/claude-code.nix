@@ -7,7 +7,6 @@
   ...
 }:
 let
-  expandTemplate = import ../lib/expand-template.nix { inherit lib; };
   expandTemplatesDir = import ../lib/expand-templates-dir.nix { inherit pkgs lib; };
 
   xcodebuildmcp = import ../packages/xcodebuildmcp { inherit pkgs; };
@@ -189,21 +188,21 @@ let
       }) sharedSkillNames
     );
 
-  mkInstructionAttr = targetPath: templatePath: {
-    "${targetPath}".text = expandTemplate {
-      templateScope = ../prompt;
-      template = templatePath;
-    };
-  };
-
+  # LLM system-prompt wiring is intentionally DETACHED. The shared prompt
+  # bodies (engineering, unix-principal, …) and the wrapper templates still
+  # live under prompt/ as definitions, but are no longer projected into any
+  # agent's always-on instruction file — each brain is emitted empty.
+  # `instructionTemplate` stays in agentProfiles as the dormant re-attach point;
+  # restoring the old `expandTemplate` projection here re-wires it. Skills,
+  # agents, commands, MCP and settings are unaffected.
   mkAgentAttrs =
     {
       instructionPath,
-      instructionTemplate,
       skillsPath,
       skillsSourceMap,
+      ...
     }:
-    (mkInstructionAttr instructionPath instructionTemplate)
+    { "${instructionPath}".text = ""; }
     // (mkSkillAttrs skillsPath skillsSourceMap);
 
   agentProfiles = [
@@ -335,11 +334,8 @@ in
   ];
 
   home.file = {
-    # Gemini
-    ".gemini/GEMINI.md".text = expandTemplate {
-      templateScope = ../prompt;
-      template = ../prompt/antigravity.md;
-    };
+    # Gemini brain detached — empty (see mkAgentAttrs note). prompt/antigravity.md preserved.
+    ".gemini/GEMINI.md".text = "";
 
     # ~/.claude/settings.json is intentionally NOT declared here. It is a
     # writable file that Claude mutates at runtime (/model, /effort, ...), so it
@@ -370,11 +366,8 @@ in
     # Claude Desktop: skill ZIPs for upload (⌘⇧G → ~/.claude/desktop-skills)
     ".claude/desktop-skills".source = desktopSkills;
 
-    # Cursor
-    ".cursorrules".text = expandTemplate {
-      templateScope = ../prompt;
-      template = ../prompt/cursor.md;
-    };
+    # Cursor brain detached — empty (see mkAgentAttrs note). prompt/cursor.md preserved.
+    ".cursorrules".text = "";
   }
   // agentFiles
   // (mkDirFileAttrs ".claude/agents" sharedAgentsDir)
