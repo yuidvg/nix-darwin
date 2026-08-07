@@ -14,14 +14,6 @@
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Rust nightly toolchain (required by screenpipe's edition2024 dependency)
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-
-    # Screenpipe: raw source (no flake.nix upstream)
-    screenpipe-src.url = "github:screenpipe/screenpipe/v0.3.135";
-    screenpipe-src.flake = false;
-
     # Kimi Code CLI agent
     kimi-cli.url = "github:MoonshotAI/kimi-cli";
 
@@ -92,16 +84,6 @@
 
           # CodeLayer: AI coding agent (macOS .app + CLI)
           packages.codelayer = import ./packages/codelayer { inherit pkgs; };
-
-          # Screenpipe: standalone build via `nix build .#screenpipe`
-          packages.screenpipe =
-            let
-              pkgsWithRust = pkgs.extend inputs.rust-overlay.overlays.default;
-            in
-            import ./packages/screenpipe {
-              pkgs = pkgsWithRust;
-              screenpipe-src = inputs.screenpipe-src;
-            };
 
           # Claude Code skills → Claude Desktop uploadable ZIPs
           packages.desktop-skills = import ./packages/desktop-skills {
@@ -194,7 +176,7 @@
               nixpkgs.hostPlatform = system;
 
               nixpkgs.overlays = [
-                inputs.llm-agents.overlays.default
+                inputs.llm-agents.overlays.shared-nixpkgs
                 # onnxruntime 1.23.2 test code fails with -Werror on macOS (nodiscard warning in graph_test.cc)
                 (final: prev: {
                   pythonPackagesExtensions = prev.pythonPackagesExtensions ++ [
@@ -202,13 +184,18 @@
                       onnxruntime = pyPrev.onnxruntime.overrideAttrs (_: {
                         doCheck = false;
                       });
-                      # pydub only needs ffmpeg/ffplay/ffprobe. Avoid ffmpeg-full's
-                      # kvazaar check path on Darwin while preserving pydub behavior.
-                      pydub = pyPrev.pydub.override { ffmpeg-full = final.ffmpeg; };
                       # speechrecognition's test closure builds optional whisper backends;
                       # openai-whisper's audio test fails under the Darwin sandbox.
                       speechrecognition = pyPrev.speechrecognition.overridePythonAttrs (_: {
                         doCheck = false;
+                      });
+                      # pandas-stubs' typing tests fail against the current pandas/numpy
+                      # (FutureWarning/DeprecationWarning behavior drifted); stubs still valid.
+                      # Clear pythonImportsCheck too — it imports pandas, which is only a
+                      # check input and drops out of scope once doCheck is off.
+                      pandas-stubs = pyPrev.pandas-stubs.overridePythonAttrs (_: {
+                        doCheck = false;
+                        pythonImportsCheck = [ ];
                       });
                     })
                   ];

@@ -124,7 +124,7 @@ nix build .#darwinConfigurations."Yuis-MacBook-Pro".system
 | `modules/shared-scripts.nix` | スクリプト群の home.packages 化 |
 | `personal.nix` | SOPS secrets、個人パッケージ、codex/zsh/git 個人設定 |
 | `prompt/` | AI プロンプト・skills (Claude/Codex 共有ソース) |
-| `packages/` | codelayer / xcodebuildmcp / desktop-skills / screenpipe |
+| `packages/` | codelayer / xcodebuildmcp / desktop-skills |
 | `scripts/` | Haskell/Python/Shell ソース |
 | `secrets.yaml`, `.sops.yaml` | sops-nix 暗号化 secrets |
 
