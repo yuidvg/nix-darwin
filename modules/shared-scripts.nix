@@ -229,6 +229,22 @@ let
     '';
   };
 
+  # Unpacks a Claude `.skill` archive into prompt/claude-code/skills/<name>/.
+  # `.skill` is a transport format only: modules/claude-code.nix enumerates that
+  # tree with readDir and projects DIRECTORIES, so a zip left there is inert.
+  skill-import = pkgs.writeShellApplication {
+    name = "skill-import";
+    runtimeInputs = with pkgs; [
+      unzip
+      coreutils
+      findutils
+      gnused
+      gawk
+      git
+    ];
+    text = builtins.readFile ../scripts/skill-import.sh;
+  };
+
   # ── Scrapbox writer ─────────────────────────────────────
   # @cosense/std is not in nixpkgs, so we use a managed node_modules
   # directory under ~/.local/share/scrapbox-write/ with activation-time
@@ -264,6 +280,7 @@ in
     download-slack-channel-files
     ch
     freeeCall
+    skill-import
 
     # Scrapbox writer
     scrapbox-write
