@@ -22,7 +22,7 @@ in
     llm-agents.openclaw
     llm-agents.agent-browser # Browser agent for LLMs (login-capable web automation)
     llm-agents.opencode
-    llm.pi
+    llm-agents.pi
 
     # Development
     tmux
