@@ -21,6 +21,8 @@ in
     llm-agents.codex
     llm-agents.openclaw
     llm-agents.agent-browser # Browser agent for LLMs (login-capable web automation)
+    llm-agents.opencode
+    llm.pi
 
     # Development
     tmux
