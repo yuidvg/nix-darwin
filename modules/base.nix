@@ -23,6 +23,7 @@ in
     llm-agents.agent-browser # Browser agent for LLMs (login-capable web automation)
     llm-agents.opencode
     llm-agents.pi
+    llm-agents.kilocode-cli
 
     # Development
     tmux
