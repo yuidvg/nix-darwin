@@ -259,11 +259,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788774573,
-        "narHash": "sha256-vuHsFSZPLC4O54je9+WUEOH3kgjIyAMQbSbLczfm9AQ=",
+        "lastModified": 1788843572,
+        "narHash": "sha256-ErFaB93qfldBEMCABIM4083ktI1LLr7bhztgN1i053w=",
         "ref": "refs/heads/master",
-        "rev": "06b642e152e60d4a351dc8efeabdab4995f79f4d",
-        "revCount": 2,
+        "rev": "639101f215758723152fd324a4cb6408f2b2306c",
+        "revCount": 3,
         "type": "git",
         "url": "file:///Users/yui/Developer/diverge/deleted"
       },

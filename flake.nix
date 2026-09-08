@@ -238,6 +238,13 @@
             services.mirror = {
               enable = true;
               dataDir = "/Users/${userConfig.username}/Developer/diverge/deleted/data";
+              # Web UI, always on; bound to this Mac's Tailscale IP so only the
+              # tailnet can reach it (no auth in the app itself).
+              serve = {
+                enable = true;
+                host = "100.93.204.33";
+                port = 8901;
+              };
             };
           }
 
