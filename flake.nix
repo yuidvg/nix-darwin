@@ -23,6 +23,11 @@
     # Haskell Dev Environment
     flake-parts.url = "github:hercules-ci/flake-parts";
     haskell-flake.url = "github:srid/haskell-flake";
+
+    # Video mirror: launchd jobs + Postgres (services.mirror.*). Points at the
+    # local git checkout, so: commit there → `nix flake update mirror` → ./apply
+    mirror.url = "git+file:///Users/yui/Developer/diverge/deleted";
+    mirror.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -226,6 +231,15 @@
           )
 
           ./modules/remote-access.nix
+
+          # Video mirror (the module owns everything: Postgres, bootstrap, jobs)
+          inputs.mirror.darwinModules.default
+          {
+            services.mirror = {
+              enable = true;
+              dataDir = "/Users/${userConfig.username}/Developer/diverge/deleted/data";
+            };
+          }
 
           inputs.home-manager.darwinModules.home-manager
           {
