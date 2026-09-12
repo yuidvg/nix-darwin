@@ -290,7 +290,6 @@
                   defaultSopsFile = secretsFile;
                   secrets.scrapbox_sid = {
                     mode = "0600";
-                    owner = config.home.username;
                   };
                 };
 
