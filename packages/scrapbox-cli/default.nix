@@ -41,7 +41,12 @@ pkgs.stdenvNoCC.mkDerivation {
     # Read the existing runtime environment; never put a cookie in the store.
     cat > "$out/libexec/sid" <<'EOF'
     #!${pkgs.runtimeShell}
-    printf '%s\n' "''${SCRAPBOX_SID:-}"
+    if [ -z "''${SCRAPBOX_SID-}" ]; then
+      exit 0
+    fi
+    sid="''${SCRAPBOX_SID}"
+    ${pkgs.ruby}/bin/ruby -r uri -e 'print URI.decode_www_form_component(ARGV[0])' "$sid"
+    printf '\n'
     EOF
     chmod +x "$out/libexec/sid"
 
