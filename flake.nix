@@ -288,7 +288,12 @@
                 sops = lib.mkIf (secretsFile != null) {
                   age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
                   defaultSopsFile = secretsFile;
+                  secrets.scrapbox_sid = {
+                    mode = "0600";
+                    owner = config.home.username;
+                  };
                 };
+
                 launchd.agents.sops-nix.config.EnvironmentVariables.PATH = lib.mkIf (secretsFile != null) (
                   lib.mkForce "/usr/bin:/bin:/usr/sbin:/sbin"
                 );

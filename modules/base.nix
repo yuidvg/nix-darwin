@@ -8,6 +8,7 @@
 }:
 let
   gitPromptScript = ../scripts/git-prompt.sh;
+  scrapboxSidSecret = "${config.home.homeDirectory}/.config/sops-nix/secrets/scrapbox_sid";
 in
 {
   home.packages = with pkgs; [
@@ -91,6 +92,10 @@ in
             # Source git prompt script
             source ${gitPromptScript}
             GIT_PS1_SHOWUPSTREAM="verbose"
+            if [[ -f ${scrapboxSidSecret} ]]; then
+              SCRAPBOX_SID="$(tr -d '\\r\\n' < ${scrapboxSidSecret})"
+              export SCRAPBOX_SID
+            fi
             precmd () { __git_ps1 "%F{cyan}%~%f%F{blue}" "%s %f" }
           '';
         in
@@ -105,6 +110,11 @@ in
     # Anyone who launches fish interactively gets Nix env vars automatically.
     fish = {
       enable = true;
+      interactiveShellInit = ''
+        if test -f ${scrapboxSidSecret}
+          set -x SCRAPBOX_SID (string trim (cat ${scrapboxSidSecret}))
+        end
+      '';
     };
 
     direnv = {
@@ -252,7 +262,6 @@ in
     PAGER = "less";
     LESS = "-R";
     SOPS_AGE_KEY_FILE = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
-    SCRAPBOX_SID = "s:SHE-0nIW3e5263L9Hm4BeQf0aRSSQpFC.uVtaUJ7Wwu+6HtCS8tPE7Zb0CuAlLCtmNMWUGWp49Yo";
     # gws encryption key in ~/.config/gws/, not macOS Keychain.
     # Why: Keychain ACL blocks GUI-subprocess access (Claude Code / Cursor), forcing re-auth.
     GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND = "file";
