@@ -284,6 +284,7 @@ in
 
     # Scrapbox writer
     scrapbox-write
+    (import ../packages/scrapbox-cli { inherit pkgs; })
 
     # CLI tools used by scripts
     pkgs.python313Packages.markitdown
