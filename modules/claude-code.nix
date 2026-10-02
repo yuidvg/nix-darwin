@@ -10,6 +10,39 @@ let
   expandTemplatesDir = import ../lib/expand-templates-dir.nix { inherit pkgs lib; };
 
   xcodebuildmcp = import ../packages/xcodebuildmcp { inherit pkgs; };
+  cosenseMcpPackage = import ../packages/cosense-mcp-server { inherit pkgs; };
+
+  cosenseSidSecret = "${config.home.homeDirectory}/.config/sops-nix/secrets/scrapbox_sid";
+  cosenseProjectName = "diverge-internal";
+
+  # Cosense MCP is wrapped so auth is read from managed secret and the project
+  # name is a public constant unless explicitly overridden at runtime.
+  cosenseMcpServerCommand = pkgs.writeShellScript "cosense-mcp-server" ''
+    #!/usr/bin/env sh
+    set -eu
+
+    if [ -z "''${COSENSE_SID:-}" ] && [ -r "${cosenseSidSecret}" ]; then
+      COSENSE_SID="$(tr -d '\r\n' < "${cosenseSidSecret}")"
+      export COSENSE_SID
+    fi
+
+    if [ -z "''${COSENSE_PROJECT_NAME:-}" ] && [ -n "''${SCRAPBOX_PROJECT_NAME:-}" ]; then
+      export COSENSE_PROJECT_NAME="$SCRAPBOX_PROJECT_NAME"
+    fi
+
+    : "''${COSENSE_PROJECT_NAME:=${cosenseProjectName}}"
+    export COSENSE_PROJECT_NAME
+
+    if [ -z "''${COSENSE_PROJECT_NAME:-}" ]; then
+      >&2 printf 'cosense-mcp-server: COSENSE_PROJECT_NAME is not set\n'
+    fi
+
+    if [ -z "''${COSENSE_SID:-}" ]; then
+      >&2 printf 'cosense-mcp-server: COSENSE_SID is not set\n'
+    fi
+
+    exec ${cosenseMcpPackage}/bin/cosense-mcp-server "$@"
+  '';
 
   # Claude Desktop uploadable skill ZIPs
   desktopSkills = import ../packages/desktop-skills {
@@ -46,9 +79,17 @@ let
     ];
   };
 
+  cosenseMcpServer = {
+    command = cosenseMcpServerCommand;
+    args = [ ];
+    env = { };
+  };
+
   sharedAgentEnvNames = [
     "GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"
     "SCRAPBOX_SID"
+    "COSENSE_SID"
+    "COSENSE_PROJECT_NAME"
     "SOPS_AGE_KEY_FILE"
   ];
 
@@ -202,8 +243,7 @@ let
       skillsSourceMap,
       ...
     }:
-    { "${instructionPath}".text = ""; }
-    // (mkSkillAttrs skillsPath skillsSourceMap);
+    { "${instructionPath}".text = ""; } // (mkSkillAttrs skillsPath skillsSourceMap);
 
   agentProfiles = [
     {
@@ -261,6 +301,7 @@ let
     mcp_servers = {
       XcodeBuildMCP = xcodeBuildMcpServer;
       freee = freeeMcpServer;
+      cosense = cosenseMcpServer;
     };
 
     plugins = {
@@ -406,6 +447,7 @@ in
       builtins.toJSON {
         XcodeBuildMCP = xcodeBuildMcpServer;
         freee = freeeMcpServer;
+        cosense = cosenseMcpServer;
       }
     }'
 

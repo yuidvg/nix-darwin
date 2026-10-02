@@ -45,7 +45,7 @@ pkgs.stdenvNoCC.mkDerivation {
       exit 0
     fi
     sid="''${SCRAPBOX_SID}"
-    ${pkgs.ruby}/bin/ruby -r uri -e 'print URI.decode_www_form_component(ARGV[0])' "$sid"
+    ${pkgs.ruby}/bin/ruby -e 'sid = ARGV[0]; print sid.gsub(/%([0-9A-Fa-f]{2})/) { |m| m[1,2].to_i(16).chr }' "$sid"
     printf '\n'
     EOF
     chmod +x "$out/libexec/sid"

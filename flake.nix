@@ -87,6 +87,9 @@
           # XcodeBuildMCP: hermetic MCP server (no npx)
           packages.xcodebuildmcp = import ./packages/xcodebuildmcp { inherit pkgs; };
 
+          # Cosense MCP server (hermetic, npm dependencies pinned by lockfile).
+          packages.cosense-mcp-server = import ./packages/cosense-mcp-server { inherit pkgs; };
+
           # CodeLayer: AI coding agent (macOS .app + CLI)
           packages.codelayer = import ./packages/codelayer { inherit pkgs; };
 
