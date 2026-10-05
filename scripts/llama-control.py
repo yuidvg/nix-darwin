@@ -91,15 +91,15 @@ def menu(current):
     print(f"LLM {state} | sfimage={symbol}")
     print("---")
     print(f"ローカル推論: {state}")
-    print(f"local-qwen · {CONFIG['context'] // 1024}K · {CONFIG['idleSeconds'] // 60}分でメモリ解放")
+    print(f"local-qwen · {CONFIG['context'] // 1024}K · 手動ロード／解放")
     if current["exit"] and not current["pid"]:
         print(f"終了コード: {current['exit']}")
     print("---")
     executable = str(Path(sys.argv[0]).resolve())
     if current["registered"] and current["selected"] and not current["pid"]:
-        print(f"ON | bash={executable} param1=on terminal=false refresh=true")
+        print(f"ロード（ON） | bash={executable} param1=on terminal=false refresh=true")
     if current["pid"]:
-        print(f"OFF（サーバー停止・メモリ解放） | bash={executable} param1=off terminal=false refresh=true")
+        print(f"アンロード（OFF・メモリ解放） | bash={executable} param1=off terminal=false refresh=true")
     print("状態を更新 | refresh=true")
     print(f"モデルの保存場所 | bash=/usr/bin/open param1={Path(CONFIG['modelPath']).parent} terminal=false")
     if current["pid"]:

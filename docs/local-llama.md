@@ -21,8 +21,10 @@ Home Manager標準のNix store待機処理を除き、独自の推論launcherは
 host/portは一箇所で定義し、サーバー・pi・Kilo・SwiftBarで共有する。
 43127は2026-10-05時点でIANA未割当・手元で未使用、macOSの一時ポート範囲49152–65535の外を選択した。将来の占有は起動時にも確認する。
 KVキャッシュ量子化は指定しない。ローカルGGUFをofflineでロードし、サーバー起動に伴うダウンロードは行わない。
-`--sleep-idle-seconds 300` により、5分間使わなければモデルとKVをメモリから解放する。
-次の推論リクエストで読み直すため、復帰時にはロード待ちがある。
+`--sleep-idle-seconds -1` で自動sleepを無効にする。ロードしたモデルは手動でアンロードするまで保持する。
+SwiftBarの「ロード（ON）」でサーバーを起動して読み込み、「アンロード（OFF・メモリ解放）」でサーバーを終了し、モデル・KV・GPUバッファを解放する。
+どちらもメニューを一回選択するだけ。ロード完了までの時間はモデル容量やストレージに依存し、瞬時とは限らない。
+アンロード後はAPIも停止する。再接続する前にロードを選ぶ。推論中のアンロードは進行中の応答を中断する。
 
 推論サーバーのRunAtLoad/KeepAliveはfalse。ログイン時の自動起動・終了後の自動再起動はしない。
 stdout/stderrは `/dev/null` で、prompt・コード・推論ログを永続保存しない。
@@ -32,13 +34,12 @@ SwiftBarだけはログイン時に起動する軽量なUIで、推論サーバ�
 | 表示 | 意味 |
 |---|---|
 | ON | サーバーが動作し、モデルがメモリに載っている |
-| 待機中 | APIは待受中、モデルとKVは自動解放済み |
-| OFF | 推論サーバーを停止している |
+| OFF | 推論サーバーが終了し、モデル・KV・GPUバッファを解放済み |
 | 読込中 | 起動中でAPI応答を待っている |
 | モデル未選択／エラー／未適用 | GGUF未選択、job終了失敗、設定が未適用 |
 
-メニューからON、OFF、状態更新、モデル保存場所、Web UIを操作できる。
-状態確認は公式 `GET /props` を使い、モデルを起こさずidle timerもリセットしない。
+メニューからロード、アンロード、状態更新、モデル保存場所、Web UIを操作できる。
+状態確認は公式 `GET /props` を使う。
 専用jobが動作中の場合だけAPIへ問い合わせ、モデルパスも照合する。HTTP proxyは使わない。
 ON時は使用中のポートを拒否する。OFFは専用jobだけを停止し、他のプロセスを止めない。
 
@@ -112,7 +113,7 @@ piにはモデルごとのtool能力スイッチがないので、未検証段�
 - 小型Qwen3-0.6B-Q4_0でalias、通常応答、ストリーミング、tool call→無害な結果→最終応答: 成功。
 - pi 1.0.2の一時ディレクトリ内のファイル作成、Kilo 7.8.3のread→最終応答: 成功。
 - 小型モデルでMetal MTL0 / Apple M3 Max、全29/29レイヤーoffload、推論中swapは0MiBで増加なし。
-- 新しいON/OFF処理を専用の一時launchd label/portで検証: 初期OFF、ON、自動sleep、状態確認で起こさない、推論で再ロード、OFF、再起動: 成功。idle timerだけ試験用に1秒へ短縮し、通常の宣言は300秒。
+- 手動ロード／アンロードを専用の一時launchd job、127.0.0.1:43127、Qwen3-0.6Bで検証: ロードからAPI応答まで約0.81秒、アンロードからプロセス終了まで約0.14秒。alias、メニュー出力、ポート解放も確認。27Bの所要時間は未測定。
 - SwiftBar用ON/OFFメニュー出力、モデル未選択の拒否を確認。
 - 一時サーバーとjobは停止・削除済み。本番の設定・モデル選択・クライアント認証は未変更。
 
@@ -130,4 +131,4 @@ sudo darwin-rebuild switch --flake /private/etc/nix-darwin
 実クライアント設定からlocal-llama providerだけ削除すれば後続編集を保持できる。
 後続編集がない場合だけバックアップを戻す。GGUFは別管理なので残る。
 
-参照: [公式CLI](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/README.md)、[自動sleep](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/tools/server/README.md#sleeping-on-idle)、[SwiftBar](https://github.com/swiftbar/SwiftBar)。
+参照: [公式CLI](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/README.md)、[サーバー設定](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/tools/server/README.md)、[SwiftBar](https://github.com/swiftbar/SwiftBar)。

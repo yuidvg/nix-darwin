@@ -11,7 +11,6 @@ let
     host = "127.0.0.1";
     port = 43127;
     context = 16384;
-    idleSeconds = 300;
   };
   baseUrl = "http://${settings.host}:${toString settings.port}/v1";
   controlConfig = pkgs.writeText "llama-control.json" (
@@ -146,7 +145,7 @@ in
         "--flash-attn"
         "auto"
         "--sleep-idle-seconds"
-        (toString settings.idleSeconds)
+        "-1"
         "--log-verbosity"
         "3"
         "--no-agent"
