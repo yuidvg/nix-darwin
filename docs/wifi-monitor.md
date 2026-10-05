@@ -32,8 +32,9 @@ enables `org.nix-community.home.wifi-monitor`. The module is imported through
   logout creates a measurement gap; expired files are removed at the next run.
   This does not wake the Mac. It cannot reconstruct historical ping results.
 - Probe errors/timeouts and truncated event output are recorded explicitly.
-  Commands have timeouts; records are atomically replaced; a lock prevents
-  concurrent manual/launchd collectors. Files are private to the user.
+  Commands have timeouts; collector state is atomically replaced; a lock prevents
+  concurrent manual/launchd collectors and protects summaries during append.
+  Files are private to the user.
 
 Normal deployment is the repository's `./apply`. The initial setup on 2026-10-05
 instead built and installed **only the Home Manager-generated monitor plist**,
@@ -135,3 +136,13 @@ while retaining event timestamps/processes/messages and structured radio metrics
 Thirty-day size estimates are extrapolations from measured compressed samples,
 not a fixed storage cap; event volume varies. No packet payloads or browsing
 history are captured. Existing older-format logs remain readable by the summary.
+
+
+Follow-up validation on 2026-10-05: 30-day expiry and hourly bucket boundary
+checks; preservation of legacy samples older than 24 hours; multiple gzip members
+read back; offline probes and timeouts; radio field extraction; refused TCP handling;
+Nix-built replacement agent and live sample verified. A live compressed sample
+was 4,950 bytes, extrapolating to about 214 MB for 43,200 one-minute samples
+(30 days), excluding a small amount of legacy data. This is a short baseline;
+actual event volume and profiler snapshots will vary. The initial uncompressed
+samples averaged about 41 KB, or roughly 1.8 GB for 30 days.
