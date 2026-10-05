@@ -1,6 +1,16 @@
 # Shared scripts: stream-oriented data transformation tools
 { pkgs, lib, ... }:
 let
+  mirror-vpn-import = pkgs.writeShellApplication {
+    name = "mirror-vpn-import";
+    runtimeInputs = [
+      pkgs.python3
+      pkgs.sing-box
+    ];
+    text = ''
+      exec python3 ${../scripts/proton-wireguard-to-sing-box.py} "$@"
+    '';
+  };
   # Python environment for markitdown and related processing
   markthesedownPythonEnv = pkgs.python313.withPackages (ps: [
     ps.markitdown
@@ -263,6 +273,8 @@ let
   '';
 in
 {
+  imports = [ ./wifi-monitor.nix ];
+
   home.packages = [
     # Haskell stream tools
     tar-map
@@ -281,6 +293,7 @@ in
     ch
     freeeCall
     skill-import
+    mirror-vpn-import
 
     # Scrapbox writer
     scrapbox-write

@@ -47,6 +47,7 @@ in
     yt-dlp
     glow
     ripgrep
+    sing-box
 
     # Google Workspace CLI (see gdrive skill)
     gws

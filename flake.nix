@@ -10,6 +10,8 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
     mac-app-util.url = "github:hraban/mac-app-util";
+    # SBCL >= 2.6.6 fixes static-space allocation on macOS 27 / Apple Silicon.
+    mac-app-util.inputs.nixpkgs.follows = "nixpkgs";
 
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
@@ -94,6 +96,8 @@
           packages.codelayer = import ./packages/codelayer { inherit pkgs; };
 
           packages.scrapbox-cli = import ./packages/scrapbox-cli { inherit pkgs; };
+
+          packages.local-llama-server = import ./packages/local-llama-server.nix { inherit pkgs; };
 
           # Claude Code skills → Claude Desktop uploadable ZIPs
           packages.desktop-skills = import ./packages/desktop-skills {
@@ -239,9 +243,11 @@
 
           # Video mirror (the module owns everything: Postgres, bootstrap, jobs)
           inputs.mirror.darwinModules.default
+          ./modules/mirror-vpn.nix
           {
             services.mirror = {
               enable = true;
+              vpn.enable = true;
               dataDir = "/Users/${userConfig.username}/Developer/diverge/deleted/data";
               # Web UI, always on; bound to this Mac's Tailscale IP so only the
               # tailnet can reach it (no auth in the app itself).
@@ -279,11 +285,13 @@
                   ./modules/base.nix
                   ./modules/claude-code.nix
                   ./modules/shared-scripts.nix
+                  ./modules/local-llama.nix
                   ./personal.nix
                 ]
                 ++ (nixpkgs.lib.optional (secretsFile != null) inputs.sops-nix.homeManagerModules.sops);
 
                 programs.home-manager.enable = true;
+                services.wifi-monitor.enable = true;
                 home.username = userConfig.username;
                 home.homeDirectory = "/Users/${userConfig.username}";
                 home.stateVersion = "24.05";
