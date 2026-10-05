@@ -97,8 +97,6 @@
 
           packages.scrapbox-cli = import ./packages/scrapbox-cli { inherit pkgs; };
 
-          packages.local-llama-server = import ./packages/local-llama-server.nix { inherit pkgs; };
-
           # Claude Code skills → Claude Desktop uploadable ZIPs
           packages.desktop-skills = import ./packages/desktop-skills {
             inherit pkgs;
