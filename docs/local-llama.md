@@ -17,7 +17,9 @@ Home Manager標準のNix store待機処理を除き、独自の推論launcherは
 
 ## 起動設定とメニューバー
 
-定義元は `modules/local-llama.nix`。127.0.0.1:8080、alias `local-qwen`、GPU全レイヤー要求、context 16384、parallel 1、Jinja、Flash Attention auto。
+定義元は `modules/local-llama.nix`。127.0.0.1:43127、alias `local-qwen`、GPU全レイヤー要求、context 16384、parallel 1、Jinja、Flash Attention auto。
+host/portは一箇所で定義し、サーバー・pi・Kilo・SwiftBarで共有する。
+43127は2026-10-05時点でIANA未割当・手元で未使用、macOSの一時ポート範囲49152–65535の外を選択した。将来の占有は起動時にも確認する。
 KVキャッシュ量子化は指定しない。ローカルGGUFをofflineでロードし、サーバー起動に伴うダウンロードは行わない。
 `--sleep-idle-seconds 300` により、5分間使わなければモデルとKVをメモリから解放する。
 次の推論リクエストで読み直すため、復帰時にはロード待ちがある。
@@ -87,10 +89,10 @@ llama-on
 
 導入済みpi 1.0.0、現行lockのビルド対象pi 1.0.2、Kilo CLI (`kilocode`) 7.8.3。
 確認したVS Code/Cursorの拡張ディレクトリにはKilo拡張はなかった。
-provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:8080/v1`、context 16384、出力上限4096。
+provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:43127/v1`、context 16384、出力上限4096。
 ローカル専用ダミー値 `local-only-unused` を使い、認証ファイルは変更しない。
 適用時にmodels.jsonとkilo.json[c]へproviderを追加する。既存設定・JSONCコメントを保持し、初回のみ `.before-local-llama` へバックアップする。
-同名providerが異なる設定で既にある場合や管理されたsymlinkの場合は変更を拒否する。
+同名providerは、それ以外の内容が宣言と一致するときだけローカル接続先のポート変更を反映し、既存コメント・認証値を保持する。それ以外の差異や管理されたsymlinkの場合は変更を拒否する。
 
 ```sh
 pi --provider local-llama --model local-qwen --no-tools --no-session

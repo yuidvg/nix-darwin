@@ -9,10 +9,11 @@ let
   label = "org.nix-community.home.local-llama";
   settings = {
     host = "127.0.0.1";
-    port = 8080;
+    port = 43127;
     context = 16384;
     idleSeconds = 300;
   };
+  baseUrl = "http://${settings.host}:${toString settings.port}/v1";
   controlConfig = pkgs.writeText "llama-control.json" (
     builtins.toJSON (settings // { inherit modelPath label; })
   );
@@ -29,7 +30,7 @@ let
   providers = pkgs.writeText "local-llama-providers.json" (
     builtins.toJSON {
       pi.local-llama = {
-        baseUrl = "http://127.0.0.1:8080/v1";
+        inherit baseUrl;
         api = "openai-completions";
         apiKey = "local-only-unused";
         models = [
@@ -53,7 +54,7 @@ let
         npm = "@ai-sdk/openai-compatible";
         name = "Local llama.cpp";
         options = {
-          baseURL = "http://127.0.0.1:8080/v1";
+          baseURL = baseUrl;
           apiKey = "local-only-unused";
         };
         models.local-qwen = {

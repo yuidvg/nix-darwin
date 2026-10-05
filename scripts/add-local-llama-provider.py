@@ -1,4 +1,5 @@
-"""Insert one provider into mutable JSON/JSONC without rewriting existing text."""
+"""Add a local provider or update only its port, preserving JSON/JSONC text."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -20,19 +21,52 @@ def parse(text):
     return json.loads(clean)
 
 
-def add(path, key, fragment):
-    if path.is_symlink():
-        raise ValueError(f"refusing to replace managed symlink: {path}")
-    text = path.read_text() if path.exists() else "{}\n"
-    data = parse(text)
-    providers = data.get(key, {})
-    if not isinstance(providers, dict):
-        raise ValueError(f"{key} must be an object")
-    name, value = next(iter(fragment.items()))
-    if name in providers:
-        if providers[name] != value:
-            raise ValueError(f"{name} already exists with different settings; left unchanged")
-        return
+def update_port(text, key, name, current, desired):
+    fields = ["baseUrl"] if key == "providers" else ["options", "baseURL"]
+    candidate = copy.deepcopy(current)
+    old_parent, new_parent = candidate, desired
+    try:
+        for field in fields[:-1]:
+            old_parent, new_parent = old_parent[field], new_parent[field]
+        old_url, new_url = old_parent[fields[-1]], new_parent[fields[-1]]
+        for url in (old_url, new_url):
+            match = re.fullmatch(r"http://127\.0\.0\.1:([0-9]{1,5})/v1", url)
+            if not match or not 1 <= int(match[1]) <= 65535:
+                raise ValueError("port updates require loopback endpoints")
+        old_parent[fields[-1]] = new_url
+    except (KeyError, TypeError) as error:
+        raise ValueError(f"{name} has an unexpected endpoint; left unchanged") from error
+    if candidate != desired:
+        raise ValueError(f"{name} already exists with different settings; left unchanged")
+
+    # Locate precisely this provider's URL token; preserve surrounding comments,
+    # formatting, auth and even identical URLs in unrelated providers.
+    tokens = [m for m in TOKEN.finditer(text) if not m[0].startswith(("//", "/*"))]
+    start = 0
+    for field in [key, name, *fields]:
+        if tokens[start][0] != "{":
+            raise ValueError("cannot locate endpoint object")
+        depth = 0
+        for i in range(start, len(tokens)):
+            token = tokens[i][0]
+            if depth == 1 and token.startswith('"') and json.loads(token) == field and tokens[i + 1][0] == ":":
+                start = i + 2
+                break
+            if token in ("{", "["):
+                depth += 1
+            elif token in ("}", "]"):
+                depth -= 1
+                if depth == 0:
+                    raise ValueError("cannot locate endpoint field")
+        else:
+            raise ValueError("cannot locate endpoint field")
+    target = tokens[start]
+    if json.loads(target[0]) != old_url:
+        raise ValueError("endpoint token does not match parsed value")
+    return text[:target.start()] + json.dumps(new_url) + text[target.end():]
+
+
+def insert_provider(text, data, key, providers, name, value):
     depth = 0
     insertion = None
     tokens = [m for m in TOKEN.finditer(text) if not m[0].startswith(("//", "/*"))]
@@ -53,7 +87,24 @@ def add(path, key, fragment):
     else:
         insertion = tokens[0].end()
         addition = "\n" + json.dumps(key) + ": {" + entry + "}" + ("," if data else "") + "\n"
-    result = text[:insertion] + addition + text[insertion:]
+    return text[:insertion] + addition + text[insertion:]
+
+
+def add(path, key, fragment):
+    if path.is_symlink():
+        raise ValueError(f"refusing to replace managed symlink: {path}")
+    text = path.read_text() if path.exists() else "{}\n"
+    data = parse(text)
+    providers = data.get(key, {})
+    if not isinstance(providers, dict):
+        raise ValueError(f"{key} must be an object")
+    name, value = next(iter(fragment.items()))
+    if name in providers:
+        if providers[name] == value:
+            return
+        result = update_port(text, key, name, providers[name], value)
+    else:
+        result = insert_provider(text, data, key, providers, name, value)
     expected = dict(data)
     expected[key] = {**providers, name: value}
     if parse(result) != expected:
