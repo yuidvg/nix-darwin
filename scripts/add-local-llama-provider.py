@@ -1,4 +1,4 @@
-"""Add a local provider or update only its port, preserving JSON/JSONC text."""
+"""Merge local providers and Pi compaction budgets into mutable client files."""
 import copy
 import json
 import os
@@ -109,6 +109,10 @@ def add(path, key, fragment):
     expected[key] = {**providers, name: value}
     if parse(result) != expected:
         raise ValueError("provider insertion validation failed")
+    write_with_backup(path, result)
+
+
+def write_with_backup(path, result):
     path.parent.mkdir(parents=True, exist_ok=True)
     backup = path.with_name(path.name + ".before-local-llama")
     if path.exists() and not backup.exists():
@@ -124,6 +128,29 @@ def add(path, key, fragment):
             os.unlink(temporary)
 
 
+def add_compaction(path, fragment):
+    if path.is_symlink():
+        raise ValueError(f"refusing to replace managed symlink: {path}")
+    # Pi settings are ordinary JSON, unlike Kilo's JSONC. Preserve every other
+    # value, including global budgets, other model overrides and UI settings.
+    data = json.loads(path.read_text()) if path.exists() else {}
+    original = copy.deepcopy(data)
+    parent = data
+    for key in ("compaction", "modelOverrides"):
+        if not isinstance(parent, dict):
+            raise ValueError("Pi compaction settings must be objects")
+        parent = parent.setdefault(key, {})
+    if not isinstance(parent, dict):
+        raise ValueError("Pi compaction modelOverrides must be an object")
+    for model, budgets in fragment.items():
+        current = parent.setdefault(model, {})
+        if not isinstance(current, dict):
+            raise ValueError(f"Pi compaction override for {model} must be an object")
+        current.update(budgets)
+    if data != original:
+        write_with_backup(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
 if __name__ == "__main__":
     home = Path(sys.argv[1])
     fragments = json.loads(Path(sys.argv[2]).read_text())
@@ -132,3 +159,4 @@ if __name__ == "__main__":
         kilo = home / ".config/kilo/kilo.json"
     add(home / ".pi/agent/models.json", "providers", fragments["pi"])
     add(kilo, "provider", fragments["kilo"])
+    add_compaction(home / ".pi/agent/settings.json", fragments["piCompaction"])

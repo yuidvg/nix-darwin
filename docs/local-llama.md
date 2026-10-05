@@ -84,16 +84,24 @@ llama-on
 ファイル: `Qwen3.8-27B-Q4_K_M.gguf`、18,973,870,528 bytes（約19.0GB / 17.7GiB）、2026-10-05確認。
 `LLAMA_CACHE` はNixから `~/.cache/llama.cpp/` へ設定する。GGUFやHF_TOKENをGit/Nix storeへ入れない。
 削除するときはOFFにして対象GGUFだけを削除する。nix-collect-garbageはこの置き場を管理しない。
-公開conversion logのqwen35構造、採用ソースのqwen35/Q4_K/Jinja実装は確認済みだが、27Bのロード・template・36GB機でのメモリ適合は未検証。
+公開conversion logのqwen35構造、採用ソースのqwen35/Q4_K/Jinja実装は確認済みだが、上記の公式27B GGUF自体のロード・template・36GB機でのメモリ適合は未検証。
 
 ## pi / Kilo
 
-導入済みpi 1.0.0、現行lockのビルド対象pi 1.0.2、Kilo CLI (`kilocode`) 7.8.3。
+導入済みpi 1.0.2、Kilo CLI (`kilocode`) 7.8.3。
 確認したVS Code/Cursorの拡張ディレクトリにはKilo拡張はなかった。
 provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:43127/v1`、context 16384、出力上限4096。
 ローカル専用ダミー値 `local-only-unused` を使い、認証ファイルは変更しない。
 適用時にmodels.jsonとkilo.json[c]へproviderを追加する。既存設定・JSONCコメントを保持し、初回のみ `.before-local-llama` へバックアップする。
 同名providerは、それ以外の内容が宣言と一致するときだけローカル接続先のポート変更を反映し、既存コメント・認証値を保持する。それ以外の差異や管理されたsymlinkの場合は変更を拒否する。
+
+piの `~/.pi/agent/settings.json` には、モデル別の圧縮設定も追加する。
+`compaction.modelOverrides["local-llama/local-qwen"]` の `reserveTokens = 4096`、`keepRecentTokens = 4096` をNixで管理する。
+16Kのうち4Kを出力用に予約し、入力が12Kを超えたら古い履歴を要約して直近約4Kを保持する。
+pi既定の予約16K・保持20Kでは、このモデルは開始直後から圧縮対象になり、`Nothing to compact (session too small)` が出る。
+他モデルの圧縮設定、グローバル設定、テーマなどの既存値は保持する。settings.jsonは通常の編集可能なJSONのままで、追加時に整形・バックアップする。
+起動中のpiには再起動で反映する。保存済みの会話を続ける場合は、同じ作業ディレクトリで下記コマンドに `--resume` を付け、`--no-session` を外して対象の会話を選ぶ。
+巨大な単一メッセージ・システムプロンプト・ツール結果そのものが16Kを超える場合は、この調整でも収まらない。入力を絞るか、メモリを確認してサーバーとクライアントのcontextを一緒に増やす。
 
 ```sh
 pi --provider local-llama --model local-qwen --no-tools --no-session
@@ -112,12 +120,18 @@ piにはモデルごとのtool能力スイッチがないので、未検証段�
 - provider追加処理: 実設定の一時コピーで既存値/JSONCコメント保持、再実行、衝突拒否を確認。
 - 小型Qwen3-0.6B-Q4_0でalias、通常応答、ストリーミング、tool call→無害な結果→最終応答: 成功。
 - pi 1.0.2の一時ディレクトリ内のファイル作成、Kilo 7.8.3のread→最終応答: 成功。
+- piのモデル別圧縮設定: 既存のグローバル設定・他モデルの予算・テーマの保持、バックアップ、再実行、symlink・不正な設定の拒否を確認。
 - 小型モデルでMetal MTL0 / Apple M3 Max、全29/29レイヤーoffload、推論中swapは0MiBで増加なし。
 - 手動ロード／アンロードを専用の一時launchd job、127.0.0.1:43127、Qwen3-0.6Bで検証: ロードからAPI応答まで約0.81秒、アンロードからプロセス終了まで約0.14秒。alias、メニュー出力、ポート解放も確認。27Bの所要時間は未測定。
 - SwiftBar用ON/OFFメニュー出力、モデル未選択の拒否を確認。
-- 一時サーバーとjobは停止・削除済み。本番の設定・モデル選択・クライアント認証は未変更。
+- 一時サーバーとjobは停止・削除済み。モデル選択・クライアント認証は変更していない。
 
-**未検証**: 適用後の実メニューバー表示・クリック、27Bのロード・GPU offload・chat template・16K実入力・tool calling・メモリ適合、画像、思考制御・思考履歴。
+圧縮設定の修正では、利用者がロード済みの `Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf` に対し、pi 1.0.2の通常応答2往復を確認。
+隔離した一時ディレクトリで人工的な履歴を増やし、約11.6Kまでは通常応答を確認した。約14.3Kでは `stopReason: length` となり、その後の要約・回復は4分の検証期限内に完了しなかった。長い履歴の自動圧縮からの復帰は未確認で、短い会話の成功とは区別する。
+`settings.json` のローカルモデル用予算だけを一般ユーザー権限で反映し、既存値、models.json、Kilo、認証ファイルの保持を確認した。
+Nixにも同じ設定を保存して対象hostをビルド済み。sudo switchは実行していない。検証用piは終了し、利用者が起動していたサーバーは維持する。
+
+**未検証**: 適用後の実メニューバー表示・クリック、公式候補27Bのロード、27BのGPU全レイヤーoffload・16K上限までの実入力・tool calling・同時使用アプリを含めたメモリ適合、画像、思考制御・思考履歴。
 
 ユーザー確認まではswitchしない。適用後はサーバーを起動せず、メニューバーだけが起動する。
 
@@ -129,6 +143,7 @@ sudo darwin-rebuild switch --flake /private/etc/nix-darwin
 
 停止だけならメニューOFFか `llama-off`。導入を戻す場合はOFFにし、flakeのlocal-llama importを外して再ビルド・確認後に適用する。
 実クライアント設定からlocal-llama providerだけ削除すれば後続編集を保持できる。
+piの `settings.json` から `compaction.modelOverrides["local-llama/local-qwen"]` だけ削除すると、今回のモデル別圧縮設定も戻せる。
 後続編集がない場合だけバックアップを戻す。GGUFは別管理なので残る。
 
 参照: [公式CLI](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/README.md)、[サーバー設定](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/tools/server/README.md)、[SwiftBar](https://github.com/swiftbar/SwiftBar)。
