@@ -17,7 +17,7 @@ Home Manager標準のNix store待機処理を除き、独自の推論launcherは
 
 ## 起動設定とメニューバー
 
-定義元は `modules/local-llama.nix`。127.0.0.1:43127、alias `local-qwen`、GPU全レイヤー要求、context 16384、parallel 1、Jinja、Flash Attention auto。
+定義元は `modules/local-llama.nix`。127.0.0.1:43127、alias `local-qwen`、GPU全レイヤー要求、context 65536（64K）、parallel 1、Jinja、Flash Attention auto。
 host/portは一箇所で定義し、サーバー・pi・Kilo・SwiftBarで共有する。
 43127は2026-10-05時点でIANA未割当・手元で未使用、macOSの一時ポート範囲49152–65535の外を選択した。将来の占有は起動時にも確認する。
 KVキャッシュ量子化は指定しない。ローカルGGUFをofflineでロードし、サーバー起動に伴うダウンロードは行わない。
@@ -90,18 +90,18 @@ llama-on
 
 導入済みpi 1.0.2、Kilo CLI (`kilocode`) 7.8.3。
 確認したVS Code/Cursorの拡張ディレクトリにはKilo拡張はなかった。
-provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:43127/v1`、context 16384、出力上限4096。
+provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:43127/v1`、context 65536、出力上限4096。
 ローカル専用ダミー値 `local-only-unused` を使い、認証ファイルは変更しない。
 適用時にmodels.jsonとkilo.json[c]へproviderを追加する。既存設定・JSONCコメントを保持し、初回のみ `.before-local-llama` へバックアップする。
-同名providerは、それ以外の内容が宣言と一致するときだけローカル接続先のポート変更を反映し、既存コメント・認証値を保持する。それ以外の差異や管理されたsymlinkの場合は変更を拒否する。
+同名providerは、それ以外の内容が宣言と一致するときだけローカル接続先のポート、context、生成したモデル表示名の変更を反映し、既存コメント・認証値を保持する。それ以外の差異や管理されたsymlinkの場合は変更を拒否する。
 
 piの `~/.pi/agent/settings.json` には、モデル別の圧縮設定も追加する。
-`compaction.modelOverrides["local-llama/local-qwen"]` の `reserveTokens = 4096`、`keepRecentTokens = 4096` をNixで管理する。
-16Kのうち4Kを出力用に予約し、入力が12Kを超えたら古い履歴を要約して直近約4Kを保持する。
-pi既定の予約16K・保持20Kでは、このモデルは開始直後から圧縮対象になり、`Nothing to compact (session too small)` が出る。
+`compaction.modelOverrides["local-llama/local-qwen"]` の `reserveTokens = 8192`、`keepRecentTokens = 16384` をNixで管理する。
+64Kのうち8Kを新規入力・ツール結果と4Kの応答用に確保し、入力が56Kを超えたら古い履歴を要約して直近約16Kを保持する。
+以前の16K設定にpi既定の予約16K・保持20Kを組み合わせると、開始直後から圧縮対象になり、`Nothing to compact (session too small)` が出たため、モデル別に予算を指定している。
 他モデルの圧縮設定、グローバル設定、テーマなどの既存値は保持する。settings.jsonは通常の編集可能なJSONのままで、追加時に整形・バックアップする。
 起動中のpiには再起動で反映する。保存済みの会話を続ける場合は、同じ作業ディレクトリで下記コマンドに `--resume` を付け、`--no-session` を外して対象の会話を選ぶ。
-巨大な単一メッセージ・システムプロンプト・ツール結果そのものが16Kを超える場合は、この調整でも収まらない。入力を絞るか、メモリを確認してサーバーとクライアントのcontextを一緒に増やす。
+入力と応答の合計が64Kを超える場合は、この調整でも収まらない。入力を絞るか、メモリを確認してサーバーとクライアントのcontextを一緒に増やす。容量の増加は処理の高速化を意味しない。
 
 ```sh
 pi --provider local-llama --model local-qwen --no-tools --no-session
@@ -126,12 +126,23 @@ piにはモデルごとのtool能力スイッチがないので、未検証段�
 - SwiftBar用ON/OFFメニュー出力、モデル未選択の拒否を確認。
 - 一時サーバーとjobは停止・削除済み。モデル選択・クライアント認証は変更していない。
 
-圧縮設定の修正では、利用者がロード済みの `Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf` に対し、pi 1.0.2の通常応答2往復を確認。
+以前の16K設定の検証では、利用者がロード済みの `Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf` に対し、pi 1.0.2の通常応答2往復を確認。
 隔離した一時ディレクトリで人工的な履歴を増やし、約11.6Kまでは通常応答を確認した。約14.3Kでは `stopReason: length` となり、その後の要約・回復は4分の検証期限内に完了しなかった。長い履歴の自動圧縮からの復帰は未確認で、短い会話の成功とは区別する。
 `settings.json` のローカルモデル用予算だけを一般ユーザー権限で反映し、既存値、models.json、Kilo、認証ファイルの保持を確認した。
 Nixにも同じ設定を保存して対象hostをビルド済み。sudo switchは実行していない。検証用piは終了し、利用者が起動していたサーバーは維持する。
 
-**未検証**: 適用後の実メニューバー表示・クリック、公式候補27Bのロード、27BのGPU全レイヤーoffload・16K上限までの実入力・tool calling・同時使用アプリを含めたメモリ適合、画像、思考制御・思考履歴。
+64Kへの変更では、同じ手元の27B GGUFを一時サーバー（127.0.0.1:43128）で検証した。
+二重ロードを避けるため、待機中の既存16K jobを一時停止し、検証後に元のjobへ戻した。
+
+- `/props` の `n_ctx = 65536`、`/v1/models` の `local-qwen`、通常応答: 確認。
+- pi 1.0.2に64Kの一時設定を渡し、応答とストリーミング（26更新）: 確認。
+- 起動ログでApple M3 Max / Metal MTL0、全66/66レイヤーoffload、Flash Attention有効、KV 4096 MiBを確認。
+- Metalモデルバッファ16810 MiB、計算バッファ417 MiB。これらは64Kを割り当てた起動時の値で、64K全量の入力ベンチマークではない。
+- 短い推論中のメモリプレッシャーは正常（level 1）。既存swapは約3912 MiBで増加なし。
+- 実設定のコピーで16K→64K→16Kを往復し、JSONCコメントも含め元の内容への復帰、他provider・認証値の保持、再実行、カスタム設定の衝突拒否を確認。
+- 一時サーバーは終了、既存16Kサーバーは復帰。実クライアント設定はハッシュで未変更を確認。64Kの恒久適用は確認待ち。
+
+**未検証**: 適用後の実メニューバー表示・クリック、公式候補27Bのロード、64K上限までの実入力・長文圧縮・27Bのtool calling・同時使用アプリを増やした際のメモリ適合、画像、思考制御・思考履歴。
 
 ユーザー確認まではswitchしない。適用後はサーバーを起動せず、メニューバーだけが起動する。
 
@@ -144,6 +155,7 @@ sudo darwin-rebuild switch --flake /private/etc/nix-darwin
 停止だけならメニューOFFか `llama-off`。導入を戻す場合はOFFにし、flakeのlocal-llama importを外して再ビルド・確認後に適用する。
 実クライアント設定からlocal-llama providerだけ削除すれば後続編集を保持できる。
 piの `settings.json` から `compaction.modelOverrides["local-llama/local-qwen"]` だけ削除すると、今回のモデル別圧縮設定も戻せる。
+64Kから16Kへ戻す場合は、`settings.context = 16384`、piの `reserveTokens = 4096` / `keepRecentTokens = 4096` に変更して再ビルド・確認後に適用する。サーバーとpiを再起動する。provider移行処理はcontextの縮小にも対応する。
 後続編集がない場合だけバックアップを戻す。GGUFは別管理なので残る。
 
 参照: [公式CLI](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/README.md)、[サーバー設定](https://github.com/ggml-org/llama.cpp/blob/v0.5.0/tools/server/README.md)、[SwiftBar](https://github.com/swiftbar/SwiftBar)。

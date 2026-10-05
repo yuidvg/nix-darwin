@@ -10,9 +10,10 @@ let
   settings = {
     host = "127.0.0.1";
     port = 43127;
-    context = 16384;
+    context = 65536;
   };
   outputTokens = 4096;
+  modelName = "Local Qwen (${toString (builtins.div settings.context 1024)}K; capabilities pending verification)";
   baseUrl = "http://${settings.host}:${toString settings.port}/v1";
   controlConfig = pkgs.writeText "llama-control.json" (
     builtins.toJSON (settings // { inherit modelPath label; })
@@ -36,7 +37,7 @@ let
         models = [
           {
             id = "local-qwen";
-            name = "Local Qwen (16K; capabilities pending verification)";
+            name = modelName;
             reasoning = false;
             input = [ "text" ];
             contextWindow = settings.context;
@@ -50,11 +51,11 @@ let
           }
         ];
       };
-      # Pi defaults reserve the entire 16K context and keep 20K of history.
-      # Scope these smaller budgets to this model; cloud models keep theirs.
+      # Leave room for a new input/tool result as well as the 4K response.
+      # Scope these budgets to this model; cloud models keep theirs.
       piCompaction."local-llama/local-qwen" = {
-        reserveTokens = outputTokens;
-        keepRecentTokens = 4096;
+        reserveTokens = outputTokens * 2;
+        keepRecentTokens = builtins.div settings.context 4;
       };
       kilo.local-llama = {
         npm = "@ai-sdk/openai-compatible";
@@ -64,7 +65,7 @@ let
           apiKey = "local-only-unused";
         };
         models.local-qwen = {
-          name = "Local Qwen (16K; capabilities pending verification)";
+          name = modelName;
           limit = {
             context = settings.context;
             output = outputTokens;

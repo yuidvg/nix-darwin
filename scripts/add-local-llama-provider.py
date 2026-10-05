@@ -8,7 +8,7 @@ import shutil
 import sys
 import tempfile
 
-TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*[\s\S]*?\*/|[{}\[\]:,]')
+TOKEN = re.compile(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*[\s\S]*?\*/|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|[{}\[\]:,]')
 
 
 def parse(text):
@@ -21,49 +21,79 @@ def parse(text):
     return json.loads(clean)
 
 
-def update_port(text, key, name, current, desired):
-    fields = ["baseUrl"] if key == "providers" else ["options", "baseURL"]
-    candidate = copy.deepcopy(current)
-    old_parent, new_parent = candidate, desired
-    try:
+def update_parameters(text, key, name, current, desired):
+    endpoint = ["baseUrl"] if key == "providers" else ["options", "baseURL"]
+    model = ["models", 0] if key == "providers" else ["models", "local-qwen"]
+    context = [*model, "contextWindow"] if key == "providers" else [*model, "limit", "context"]
+    display_name = [*model, "name"]
+
+    def parent_at(data, fields):
         for field in fields[:-1]:
-            old_parent, new_parent = old_parent[field], new_parent[field]
-        old_url, new_url = old_parent[fields[-1]], new_parent[fields[-1]]
-        for url in (old_url, new_url):
+            data = data[field]
+        return data
+
+    changes = []
+    candidate = copy.deepcopy(current)
+    try:
+        for data in (current, desired):
+            url = parent_at(data, endpoint)[endpoint[-1]]
             match = re.fullmatch(r"http://127\.0\.0\.1:([0-9]{1,5})/v1", url)
             if not match or not 1 <= int(match[1]) <= 65535:
                 raise ValueError("port updates require loopback endpoints")
-        old_parent[fields[-1]] = new_url
-    except (KeyError, TypeError) as error:
-        raise ValueError(f"{name} has an unexpected endpoint; left unchanged") from error
+            size = parent_at(data, context)[context[-1]]
+            title = parent_at(data, display_name)[display_name[-1]]
+            if type(size) is not int or size < 1024 or size % 1024:
+                raise ValueError("context must be a positive multiple of 1024")
+            if title != f"Local Qwen ({size // 1024}K; capabilities pending verification)":
+                raise ValueError("custom model names are left unchanged")
+        for fields in (endpoint, context, display_name):
+            old = parent_at(candidate, fields)[fields[-1]]
+            new = parent_at(desired, fields)[fields[-1]]
+            parent_at(candidate, fields)[fields[-1]] = new
+            if old != new:
+                changes.append(([key, name, *fields], old, new))
+    except (KeyError, IndexError, TypeError) as error:
+        raise ValueError(f"{name} has unexpected settings; left unchanged") from error
     if candidate != desired:
         raise ValueError(f"{name} already exists with different settings; left unchanged")
+    for fields, old, new in changes:
+        text = replace_scalar(text, fields, old, new)
+    return text
 
-    # Locate precisely this provider's URL token; preserve surrounding comments,
-    # formatting, auth and even identical URLs in unrelated providers.
+
+def replace_scalar(text, fields, old, new):
+    # Find one exact object/array path. Preserve all other JSONC text, including
+    # comments, auth, and identical names, numbers or URLs in other providers.
     tokens = [m for m in TOKEN.finditer(text) if not m[0].startswith(("//", "/*"))]
     start = 0
-    for field in [key, name, *fields]:
-        if tokens[start][0] != "{":
-            raise ValueError("cannot locate endpoint object")
-        depth = 0
-        for i in range(start, len(tokens)):
+    for field in fields:
+        container = "[" if isinstance(field, int) else "{"
+        if tokens[start][0] != container:
+            raise ValueError("cannot locate parameter container")
+        depth, index = 1, 0
+        for i in range(start + 1, len(tokens)):
             token = tokens[i][0]
-            if depth == 1 and token.startswith('"') and json.loads(token) == field and tokens[i + 1][0] == ":":
-                start = i + 2
-                break
+            if depth == 1:
+                if container == "[" and token not in (",", "]") and index == field:
+                    start = i
+                    break
+                if container == "{" and token.startswith('"') and json.loads(token) == field and tokens[i + 1][0] == ":":
+                    start = i + 2
+                    break
+                if token == ",":
+                    index += 1
             if token in ("{", "["):
                 depth += 1
             elif token in ("}", "]"):
                 depth -= 1
                 if depth == 0:
-                    raise ValueError("cannot locate endpoint field")
+                    raise ValueError("cannot locate parameter field")
         else:
-            raise ValueError("cannot locate endpoint field")
+            raise ValueError("cannot locate parameter field")
     target = tokens[start]
-    if json.loads(target[0]) != old_url:
-        raise ValueError("endpoint token does not match parsed value")
-    return text[:target.start()] + json.dumps(new_url) + text[target.end():]
+    if json.loads(target[0]) != old:
+        raise ValueError("parameter token does not match parsed value")
+    return text[:target.start()] + json.dumps(new) + text[target.end():]
 
 
 def insert_provider(text, data, key, providers, name, value):
@@ -102,7 +132,7 @@ def add(path, key, fragment):
     if name in providers:
         if providers[name] == value:
             return
-        result = update_port(text, key, name, providers[name], value)
+        result = update_parameters(text, key, name, providers[name], value)
     else:
         result = insert_provider(text, data, key, providers, name, value)
     expected = dict(data)
