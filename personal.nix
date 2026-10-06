@@ -41,8 +41,7 @@ let
         };
       };
       inherit (pkgs.stdenv.hostPlatform) system;
-      artifact =
-        artifacts.${system} or (throw "beeper-cli: unsupported system ${system}");
+      artifact = artifacts.${system} or (throw "beeper-cli: unsupported system ${system}");
     in
     pkgs.stdenvNoCC.mkDerivation {
       pname = "beeper-cli";
@@ -55,11 +54,11 @@ let
       # The binary is a 117MB self-contained executable with data appended after the
       # Mach-O image and a hardened-runtime signature; stripping/patching corrupts both.
       dontStrip = true;
-      nativeBuildInputs =
-        [ pkgs.unzip ]
-        ++ lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.autoPatchelfHook;
-      buildInputs =
-        lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib ];
+      nativeBuildInputs = [
+        pkgs.unzip
+      ]
+      ++ lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.autoPatchelfHook;
+      buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc.cc.lib ];
       installPhase = ''
         runHook preInstall
         install -Dm755 bin/beeper $out/bin/beeper
@@ -109,6 +108,7 @@ in
 
   home.sessionPath = [
     "/Applications/Docker.app/Contents/Resources/bin"
+    "/Applications/Orca.app/Contents/Resources/bin"
   ];
 
   programs.git.settings = {
