@@ -11,7 +11,7 @@ The semantic contract belongs in Nix and prompt snippets. Concrete config files 
 ## Managed State
 
 - `modules/claude-code.nix` owns generated Claude Code and Codex instruction files.
-- `prompt/claude-code/skills` is the shared skill source.
+- `prompt/skills` is the shared skill source.
 - Claude Code receives `~/.claude/settings.json`.
 - Codex receives stable defaults by merging a Nix-generated JSON document into `~/.codex/config.toml`.
 - Xcode Agent receives the same XcodeBuildMCP server definition with absolute Nix store paths.

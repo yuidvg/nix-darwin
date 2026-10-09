@@ -4,10 +4,13 @@ Read this before changing Nix/Home Manager, Claude/Codex prompts, skills, or sha
 
 ## Source Of Truth
 
-- Shared skills live at `prompt/claude-code/skills/<name>/`.
+- Shared skills live at `prompt/skills/<name>/`.
 - Shared scripts live at `scripts/` and are wired by `modules/shared-scripts.nix`.
 - Agent prompt/config projection is owned by `modules/claude-code.nix`.
-- Live files under `~/.claude/*` and `~/.codex/*` are generated outputs.
+- Live skills under `~/.claude/skills`, `~/.codex/skills`, and `~/.pi/agent/skills`
+  are generated outputs from the same canonical source. Codex and Pi projections
+  add required frontmatter and a `SKILL.md` entry point for legacy `index.md` skills.
+- Other managed files under `~/.claude/*` and `~/.codex/*` are generated outputs.
 - Downstream flakes may import this repo from GitHub or from a local `path:` checkout while agent tooling is being tested. Keep that binding in the downstream flake, not in shared modules.
 
 ## Skill Change Fast Path
@@ -15,17 +18,17 @@ Read this before changing Nix/Home Manager, Claude/Codex prompts, skills, or sha
 1. Add or edit only the canonical skill source:
 
 ```bash
-$EDITOR prompt/claude-code/skills/<skill>/SKILL.md
+$EDITOR prompt/skills/<skill>/SKILL.md
 ```
 
 2. Validate the skill locally:
 
 ```bash
 ruby -ryaml -e 'ARGV.each { |f| YAML.load_file(f); puts "ok #{f}" }' \
-  prompt/claude-code/skills/<skill>/SKILL.md
+  prompt/skills/<skill>/SKILL.md
 
 python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
-  prompt/claude-code/skills/<skill>
+  prompt/skills/<skill>
 ```
 
 3. Stage new skill files before Nix validation.
@@ -33,7 +36,7 @@ python3 ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
 Nix path inputs ignore untracked files. If a new skill is not staged or committed, downstream builds may keep using the old path hash.
 
 ```bash
-git add prompt/claude-code/skills/<skill>
+git add prompt/skills/<skill>
 ```
 
 4. Validate the narrow output, not the whole flake:
@@ -98,14 +101,15 @@ After activation, verify the live generated path:
 ```bash
 readlink ~/.codex/skills/<skill>
 readlink ~/.claude/skills/<skill>
+readlink ~/.pi/agent/skills/<skill>
 ```
 
 If live links are shadowed by local directories, do not edit generated files. Move the shadowing directory aside, then rerun activation.
 
 ## Rules
 
-- Do not duplicate a skill under both Claude and Codex trees. One canonical source feeds both.
-- Do not edit `~/.codex/skills` or `~/.claude/skills` as source.
+- Do not duplicate a skill under Claude, Codex, or Pi trees. One canonical source feeds all three.
+- Do not edit `~/.codex/skills`, `~/.claude/skills`, or `~/.pi/agent/skills` as source.
 - Do not use `nix flake update` without an input name unless the task is dependency refresh.
 - Do not use familiarity or DX as a reason to add another config boundary.
 - Keep local path assumptions in the downstream launcher layer; shared modules should express the abstract contract.

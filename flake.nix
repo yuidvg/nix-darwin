@@ -97,10 +97,12 @@
 
           packages.scrapbox-cli = import ./packages/scrapbox-cli { inherit pkgs; };
 
-          # Claude Code skills → Claude Desktop uploadable ZIPs
+          packages.cosense-cli = import ./packages/cosense-cli { inherit pkgs; };
+
+          # Shared skills → Claude Desktop uploadable ZIPs
           packages.desktop-skills = import ./packages/desktop-skills {
             inherit pkgs;
-            skillsDir = ./prompt/claude-code/skills;
+            skillsDir = ./prompt/skills;
           };
 
           # Copy skill ZIPs to ~/Desktop (or custom dir)

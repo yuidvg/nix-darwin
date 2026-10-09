@@ -1,6 +1,6 @@
 # skill-import: unpack a Claude `.skill` archive into the canonical skill tree
 # `.skill` is a transport format (a zip of one directory). Storage format here
-# is a plain directory under prompt/claude-code/skills/<name>/, which
+# is a plain directory under prompt/skills/<name>/, which
 # modules/claude-code.nix picks up via readDir with no Nix edit required.
 # Dependencies injected by Nix: unzip, coreutils, findutils, gnused, gawk, git
 # Strict mode (errexit/nounset/pipefail) is supplied by writeShellApplication.
@@ -9,11 +9,11 @@ REPO=""
 NAME_OVERRIDE=""
 FORCE=0
 DO_GIT_ADD=1
-SKILLS_REL="prompt/claude-code/skills"
+SKILLS_REL="prompt/skills"
 
 usage() {
   cat <<'HELP'
-skill-import - Unpack a Claude .skill archive into prompt/claude-code/skills/
+skill-import - Unpack a Claude .skill archive into prompt/skills/
 
 USAGE:
   skill-import <path.skill | directory> [OPTIONS]
@@ -24,9 +24,10 @@ DESCRIPTION:
   result with `git add`.
 
   No Nix edit is needed to add a skill: modules/claude-code.nix enumerates
-  prompt/claude-code/skills/ with readDir and projects every DIRECTORY into
-  ~/.claude/skills, ~/.codex/skills, and the desktop-skills ZIPs. A .skill file
-  left in that tree is silently ignored, which is why this tool exists.
+  prompt/skills/ with readDir and projects every DIRECTORY into
+  ~/.claude/skills, ~/.codex/skills, ~/.pi/agent/skills, and the desktop-skills
+  ZIPs. A .skill file left in that tree is silently ignored, which is why this
+  tool exists.
 
 OPTIONS:
   -C, --repo <dir>   Repository root. Default: $NIX_DARWIN_DIR, else the git

@@ -37,6 +37,5 @@
 
 @[unix-principal]
 @[engineering]
-@[context-compression]
 @[local-installation]
 @[architectual-decision]

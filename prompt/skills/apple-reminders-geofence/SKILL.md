@@ -51,7 +51,7 @@ swift ~/.codex/skills/apple-reminders-geofence/scripts/geofence_reminders.swift 
 The same script works from the canonical repo path before projection:
 
 ```bash
-swift prompt/claude-code/skills/apple-reminders-geofence/scripts/geofence_reminders.swift < spec.json
+swift prompt/skills/apple-reminders-geofence/scripts/geofence_reminders.swift < spec.json
 ```
 
 Input schema:

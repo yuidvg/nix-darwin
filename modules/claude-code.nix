@@ -47,7 +47,7 @@ let
   # Claude Desktop uploadable skill ZIPs
   desktopSkills = import ../packages/desktop-skills {
     inherit pkgs;
-    skillsDir = ../prompt/claude-code/skills;
+    skillsDir = sharedSkillsDir;
   };
 
   # XcodeBuildMCP: shared between CLI and Xcode Agent
@@ -151,35 +151,8 @@ let
   # All commands must use absolute Nix store paths.
   xcodeAgentConfigDir = "Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig";
 
-  # Shared agents & commands: deployed to ~/.claude/{agents,commands}
-  sharedAgentsDir = ../prompt/claude-code/agents;
-  sharedCommandsDir = ../prompt/claude-code/commands;
-
-  # Enumerate files recursively under a directory, returning relative paths.
-  # e.g. agents/cl/foo.md → ".claude/agents/cl/foo.md"
-  mkDirFileAttrs =
-    targetPrefix: srcDir:
-    let
-      # Read top-level entries (namespace dirs like "cl/")
-      topEntries = builtins.readDir srcDir;
-      namespaces = builtins.filter (n: topEntries.${n} == "directory") (builtins.attrNames topEntries);
-      mkNamespaceAttrs =
-        ns:
-        let
-          nsEntries = builtins.readDir (srcDir + "/${ns}");
-          files = builtins.filter (f: nsEntries.${f} == "regular") (builtins.attrNames nsEntries);
-        in
-        builtins.listToAttrs (
-          map (f: {
-            name = "${targetPrefix}/${ns}/${f}";
-            value.source = srcDir + "/${ns}/${f}";
-          }) files
-        );
-    in
-    builtins.foldl' (acc: ns: acc // (mkNamespaceAttrs ns)) { } namespaces;
-
-  # Shared skill source: Claude Code skillpack is wired to both Claude and Codex.
-  sharedSkillsDir = ../prompt/claude-code/skills;
+  # One canonical skillpack is projected into Claude Code, Codex, and Pi.
+  sharedSkillsDir = ../prompt/skills;
   sharedSkillEntries = builtins.readDir sharedSkillsDir;
   sharedSkillNames = builtins.filter (name: sharedSkillEntries.${name} == "directory") (
     builtins.attrNames sharedSkillEntries
@@ -194,12 +167,18 @@ let
     }) sharedSkillNames
   );
 
-  codexSkillSources = builtins.listToAttrs (
+  # Codex and Pi require SKILL.md with frontmatter. Keep the original Claude
+  # sources intact and normalize their portable projections at build time.
+  portableSkillSources = builtins.listToAttrs (
     map (name: {
       inherit name;
-      value = pkgs.runCommand "codex-skill-${name}" { } ''
+      value = pkgs.runCommand "portable-skill-${name}" { } ''
         mkdir -p "$out"
         cp -R ${expandedSkillSources.${name}}/. "$out/"
+
+        if [ ! -f "$out/SKILL.md" ] && [ -f "$out/index.md" ]; then
+          cp "$out/index.md" "$out/SKILL.md"
+        fi
 
         if [ -f "$out/SKILL.md" ]; then
           first_line="$(${pkgs.coreutils}/bin/head -n 1 "$out/SKILL.md" || true)"
@@ -208,7 +187,7 @@ let
             {
               echo "---"
               echo "name: ${name}"
-              echo "description: Codex-compatible projection of the ${name} Claude skill."
+              echo "description: Shared ${name} skill from the Claude Code skillpack."
               echo "---"
               echo
               cat "$out/SKILL.md"
@@ -235,7 +214,7 @@ let
   # agent's always-on instruction file — each brain is emitted empty.
   # `instructionTemplate` stays in agentProfiles as the dormant re-attach point;
   # restoring the old `expandTemplate` projection here re-wires it. Skills,
-  # agents, commands, MCP and settings are unaffected.
+  # MCP and settings are unaffected.
   mkAgentAttrs =
     {
       instructionPath,
@@ -256,7 +235,7 @@ let
       instructionPath = ".codex/AGENTS.md";
       instructionTemplate = ../prompt/codex/agent.md;
       skillsPath = ".codex/skills";
-      skillsSourceMap = codexSkillSources;
+      skillsSourceMap = portableSkillSources;
     }
   ];
 
@@ -375,7 +354,7 @@ in
   ];
 
   home.file = {
-    # Gemini brain detached — empty (see mkAgentAttrs note). prompt/antigravity.md preserved.
+    # Gemini brain detached — empty (see mkAgentAttrs note).
     ".gemini/GEMINI.md".text = "";
 
     # ~/.claude/settings.json is intentionally NOT declared here. It is a
@@ -411,13 +390,8 @@ in
     ".cursorrules".text = "";
   }
   // agentFiles
-  // (mkDirFileAttrs ".claude/agents" sharedAgentsDir)
-  // (mkDirFileAttrs ".claude/commands" sharedCommandsDir);
+  // (mkSkillAttrs ".pi/agent/skills" portableSkillSources);
 
-  # Symlink ~/.claude/{commands,skills} → Xcode Agent config dir
-  # so both CLI and Xcode Agent share the same commands/skills.
-  # Xcode Agent ignores ~/.claude/commands/ and ~/.claude/skills/,
-  # but reads from its own config dir.
   # Claude Code user settings: non-destructive deep merge into the writable
   # ~/.claude/settings.json. Structural keys (claudeSettingsManaged) are
   # re-asserted on every rebuild; volatile keys Claude itself writes (model,
@@ -470,10 +444,11 @@ in
     XCODE_DIR="$HOME/${xcodeAgentConfigDir}"
     mkdir -p "$XCODE_DIR"
 
-    # commands: Xcode Agent dir → ~/.claude/commands (source of truth)
-    # Use -L to detect dangling symlinks (which -e misses)
-    if [ ! -L "$XCODE_DIR/commands" ] && [ ! -e "$XCODE_DIR/commands" ]; then
-      ln -s "$HOME/.claude/commands" "$XCODE_DIR/commands"
+    # Remove the link created by the retired shared commands projection.
+    # Preserve user-created directories and links to other locations.
+    if [ -L "$XCODE_DIR/commands" ] && \
+       [ "$(${pkgs.coreutils}/bin/readlink "$XCODE_DIR/commands")" = "$HOME/.claude/commands" ]; then
+      rm "$XCODE_DIR/commands"
     fi
 
     # skills: Xcode Agent dir → ~/.claude/skills (source of truth, Nix-managed)

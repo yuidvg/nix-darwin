@@ -93,12 +93,13 @@ in
     hidden-bar
     utm
     transmission_4
+    zed-editor
     gemini-rag
     beeper-cli
   ];
 
   # NOTE: purchase-research skill is now auto-enumerated by modules/claude-code.nix
-  # (single repo → prompt/claude-code/skills/ is the canonical source for all skills).
+  # (single repo → prompt/skills/ is the canonical source for all skills).
 
   # gws reads the service-account JSON from this path (sops-nix decrypts it there).
   # Pairs with GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND="file" set in modules/base.nix.

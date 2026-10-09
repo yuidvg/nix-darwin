@@ -239,7 +239,7 @@ let
     '';
   };
 
-  # Unpacks a Claude `.skill` archive into prompt/claude-code/skills/<name>/.
+  # Unpacks a Claude `.skill` archive into prompt/skills/<name>/.
   # `.skill` is a transport format only: modules/claude-code.nix enumerates that
   # tree with readDir and projects DIRECTORIES, so a zip left there is inert.
   skill-import = pkgs.writeShellApplication {
@@ -298,6 +298,7 @@ in
     # Scrapbox writer
     scrapbox-write
     (import ../packages/scrapbox-cli { inherit pkgs; })
+    (import ../packages/cosense-cli { inherit pkgs; })
 
     # CLI tools used by scripts
     pkgs.python313Packages.markitdown
@@ -306,7 +307,7 @@ in
 
   # prompt-review collector (nix-shell shebang, self-contained)
   home.file.".local/bin/prompt-review-collect" = {
-    source = ../prompt/claude-code/skills/prompt-review/scripts/collect.py;
+    source = ../prompt/skills/prompt-review/scripts/collect.py;
     executable = true;
   };
 
