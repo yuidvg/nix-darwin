@@ -1,6 +1,27 @@
 # Shared scripts: stream-oriented data transformation tools
-{ pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
+  cosenseCliPackage = import ../packages/cosense-cli { inherit pkgs; };
+  cosensePatSecret =
+    config.sops.secrets.cosense_pat.path
+      or "${config.home.homeDirectory}/.config/sops-nix/secrets/cosense_pat";
+
+  # Agents may launch this command without the interactive shell's environment.
+  # Load the managed token at runtime, preserving an explicit COSENSE_PAT.
+  cosense = pkgs.writeShellScriptBin "cosense" ''
+    set -eu
+    if [ -z "''${COSENSE_PAT:-}" ] && [ -r "${cosensePatSecret}" ]; then
+      COSENSE_PAT="$(${pkgs.coreutils}/bin/tr -d '\r\n' < "${cosensePatSecret}")"
+      export COSENSE_PAT
+    fi
+    exec ${cosenseCliPackage}/bin/cosense "$@"
+  '';
+
   mirror-vpn-import = pkgs.writeShellApplication {
     name = "mirror-vpn-import";
     runtimeInputs = [
@@ -298,7 +319,7 @@ in
     # Scrapbox writer
     scrapbox-write
     (import ../packages/scrapbox-cli { inherit pkgs; })
-    (import ../packages/cosense-cli { inherit pkgs; })
+    cosense
 
     # CLI tools used by scripts
     pkgs.python313Packages.markitdown

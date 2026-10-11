@@ -75,7 +75,7 @@ Cosenseは複数のページ同士をリンクさせ、複雑な情報をナレ�
 
 - `cosense <command> <args...>` を実行する
 - CLI は nix-darwin / Home Manager が管理する。`cosense --version` で導入を確認する
-- グローバル npm install や npx による導入・更新は行わない。導入・更新手順は `docs/cosense-cli.md` を参照する（nix-darwin リポジトリ内）
+- グローバル npm install や npx による導入・更新は行わない
 - Node 24+ 前提
 
 ### コマンド一覧

@@ -79,6 +79,9 @@ in
     gemini_api_key = { };
     anthropic_api_key = { };
     openai_api_key = { };
+    cosense_pat = {
+      mode = "0600";
+    };
     # Google service-account JSON for the `gws` CLI. Decrypted by sops-nix to a
     # stable runtime path; GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE points at it.
     google_workspace_credentials = { };
@@ -94,6 +97,7 @@ in
     utm
     transmission_4
     zed-editor
+    google-cloud-sdk
     gemini-rag
     beeper-cli
   ];
@@ -126,5 +130,14 @@ in
       export GEMINI_API_KEY="$(cat ${config.sops.secrets.gemini_api_key.path})"
     [[ -r "${config.sops.secrets.openai_api_key.path}" ]] && \
       export OPENAI_API_KEY="$(cat ${config.sops.secrets.openai_api_key.path})"
+    if [[ -z "''${COSENSE_PAT-}" && -r "${config.sops.secrets.cosense_pat.path}" ]]; then
+      export COSENSE_PAT="$(${pkgs.coreutils}/bin/tr -d '\r\n' < "${config.sops.secrets.cosense_pat.path}")"
+    fi
+  '';
+
+  programs.fish.interactiveShellInit = lib.mkAfter ''
+    if test -z "$COSENSE_PAT"; and test -r "${config.sops.secrets.cosense_pat.path}"
+      set -gx COSENSE_PAT (${pkgs.coreutils}/bin/tr -d '\r\n' < "${config.sops.secrets.cosense_pat.path}")
+    end
   '';
 }

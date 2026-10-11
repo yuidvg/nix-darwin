@@ -14,5 +14,4 @@ Local adaptations:
   metadata, since the shared skill is projected directly to all agents.
 
 The reading, editing, file handling, and interactive login procedures are
-otherwise unchanged. Update the vendored skill with the CLI; see
-`docs/cosense-cli.md` in the nix-darwin repository.
+otherwise unchanged. Update the vendored skill with the CLI.

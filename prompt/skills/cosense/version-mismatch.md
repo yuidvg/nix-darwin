@@ -19,4 +19,4 @@ CLIの挙動が手順書と食い違う時は、Skill version と CLI version �
 - Skill/plugin version (marketplace.json) と CLI version (npm package) は管理単位が違う。major/minor が一致しないことだけで互換性問題と判定しない
 - CLI最新版は `npm view @helpfeel/cosense-cli version` で確認できる
 
-- この環境では CLI と Skill を nix-darwin が管理する。更新は `docs/cosense-cli.md` の手順で固定元と依存ハッシュを更新し、ビルド後に反映する。グローバル npm install や npx skills update は使わない。
+- この環境では CLI と Skill を nix-darwin が管理する。更新も管理元の Nix 設定と Skill ソースで行い、グローバル npm install や npx skills update は使わない。

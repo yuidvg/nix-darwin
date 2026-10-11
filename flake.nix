@@ -30,6 +30,9 @@
     # local git checkout, so: commit there → `nix flake update mirror` → ./apply
     mirror.url = "git+file:///Users/yui/Developer/diverge/deleted";
     mirror.inputs.nixpkgs.follows = "nixpkgs";
+
+    # InVPN keeps its qualified Python/sing-box versions in the product flake.
+    invpn.url = "github:yuidvg/in-vpn/v0.1.0";
   };
 
   outputs =
@@ -143,6 +146,8 @@
         };
 
         modules = [
+          inputs.invpn.darwinModules.default
+          { programs.invpn.enable = true; }
           (
             {
               pkgs,
@@ -278,6 +283,11 @@
                 home.packages = [
                   inputs.kimi-cli.packages.${system}.default
                   (import ./packages/codelayer { inherit pkgs; })
+                ];
+
+                # Prefer the managed CLI over the earlier ~/.local/bin wrappers.
+                home.sessionPath = lib.mkBefore [
+                  "${inputs.invpn.packages.${system}.invpn}/bin"
                 ];
 
                 imports = [
