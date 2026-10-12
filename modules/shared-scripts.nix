@@ -6,6 +6,15 @@
   ...
 }:
 let
+  isolatedGws = import ../packages/gws-isolated { inherit pkgs; };
+  gwsIdentity =
+    name:
+    pkgs.writeShellApplication {
+      name = "gws-${name}";
+      text = ''
+        exec ${pkgs.python3}/bin/python3 ${../scripts/gws-isolated.py} ${isolatedGws}/bin/gws ${lib.escapeShellArg "${config.home.homeDirectory}/.config/gws-${name}"} "$@"
+      '';
+    };
   cosenseCliPackage = import ../packages/cosense-cli { inherit pkgs; };
   cosensePatSecret =
     config.sops.secrets.cosense_pat.path
@@ -297,6 +306,8 @@ in
   imports = [ ./wifi-monitor.nix ];
 
   home.packages = [
+    (gwsIdentity "personal")
+    (gwsIdentity "work")
     # Haskell stream tools
     tar-map
     url2content

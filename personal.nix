@@ -6,6 +6,60 @@
   ...
 }:
 let
+  # Identity names are independent of the CLI consuming the key.
+  googleServiceAccounts = {
+    agent = {
+      secret = "google_service_account_agent";
+      email = "agent-0@agent-499711.iam.gserviceaccount.com";
+      project = "agent-499711";
+    };
+    inventory = {
+      secret = "google_service_account_inventory_viewer";
+      email = "viewer@inventory-project-0.iam.gserviceaccount.com";
+      project = "inventory-project-0";
+    };
+  };
+  googleCredentials = name: config.sops.secrets.${googleServiceAccounts.${name}.secret}.path;
+  # Contains only public metadata and paths, never key contents.
+  googleProfiles = lib.mapAttrs (
+    name: account:
+    pkgs.writeText "google-${name}.env" ''
+      # Explicit token/account overrides must not select another identity.
+      unset GOOGLE_WORKSPACE_CLI_TOKEN GOOGLE_WORKSPACE_CLI_ACCOUNT
+      unset CLOUDSDK_AUTH_ACCESS_TOKEN CLOUDSDK_AUTH_ACCESS_TOKEN_FILE
+      unset CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT CLOUDSDK_ACTIVE_CONFIG_NAME
+      export GOOGLE_APPLICATION_CREDENTIALS=${lib.escapeShellArg (googleCredentials name)}
+      export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE="$GOOGLE_APPLICATION_CREDENTIALS"
+      export CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$GOOGLE_APPLICATION_CREDENTIALS"
+      export GOOGLE_CLOUD_PROJECT=${lib.escapeShellArg account.project}
+      export GOOGLE_WORKSPACE_PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+      export CLOUDSDK_CORE_PROJECT="$GOOGLE_CLOUD_PROJECT"
+      export CLOUDSDK_CORE_ACCOUNT=${lib.escapeShellArg account.email}
+      # Keep cached tokens and mutable CLI settings separate for each identity.
+      export CLOUDSDK_CONFIG=${lib.escapeShellArg "${config.home.homeDirectory}/.config/gcloud-service-accounts/${name}"}
+      export GOOGLE_WORKSPACE_CLI_CONFIG_DIR=${lib.escapeShellArg "${config.home.homeDirectory}/.config/gws-service-accounts/${name}"}
+      export GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND=file
+    ''
+  ) googleServiceAccounts;
+  withGoogleAccount =
+    name: _:
+    pkgs.writeShellApplication {
+      name = "with-google-${name}";
+      extraShellCheckFlags = [ "-x" ];
+      text = ''
+        if [ "$#" -eq 0 ]; then
+          echo "Usage: with-google-${name} COMMAND [ARGS...]" >&2
+          exit 2
+        fi
+        if [ ! -r ${lib.escapeShellArg (googleCredentials name)} ]; then
+          echo "Google credentials for ${name} are unavailable; activate nix-darwin first." >&2
+          exit 1
+        fi
+        source ${googleProfiles.${name}}
+        umask 077
+        exec "$@"
+      '';
+    };
   gemini-rag = pkgs.writeScriptBin "gemini-rag" ''
     #!/bin/sh
     if [ -z "$GEMINI_API_KEY" ] && [ -r "${config.sops.secrets.gemini_api_key.path}" ]; then
@@ -82,33 +136,46 @@ in
     cosense_pat = {
       mode = "0600";
     };
-    # Google service-account JSON for the `gws` CLI. Decrypted by sops-nix to a
-    # stable runtime path; GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE points at it.
-    google_workspace_credentials = { };
-  };
+    # Compatibility path for existing MYODAI scripts; same encrypted agent key.
+    google_workspace_credentials = {
+      key = googleServiceAccounts.agent.secret;
+      mode = "0600";
+    };
+  }
+  // lib.mapAttrs' (
+    _: account: lib.nameValuePair account.secret { mode = "0600"; }
+  ) googleServiceAccounts;
 
   # Codex CLI config is managed centrally by modules/claude-code.nix
   # (codexDefaults, tomlkit non-destructive merge). `model` is intentionally
   # left unmanaged — set it ad hoc via codex /model; rebuilds won't clobber it.
 
   # Personal packages
-  home.packages = with pkgs; [
-    hidden-bar
-    utm
-    transmission_4
-    zed-editor
-    google-cloud-sdk
-    gemini-rag
-    beeper-cli
-  ];
+  home.packages =
+    (with pkgs; [
+      hidden-bar
+      utm
+      transmission_4
+      zed-editor
+      google-cloud-sdk
+      gemini-rag
+      beeper-cli
+    ])
+    ++ lib.mapAttrsToList withGoogleAccount googleServiceAccounts;
 
   # NOTE: purchase-research skill is now auto-enumerated by modules/claude-code.nix
   # (single repo → prompt/skills/ is the canonical source for all skills).
 
-  # gws reads the service-account JSON from this path (sops-nix decrypts it there).
-  # Pairs with GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND="file" set in modules/base.nix.
+  # Stable interface for devShells; wrappers source these same store files.
+  xdg.configFile = lib.mapAttrs' (
+    name: profile: lib.nameValuePair "google-service-accounts/${name}.env" { source = profile; }
+  ) googleProfiles;
+
+  # Preserve the existing gws default; projects can select their own profile.
   home.sessionVariables = {
-    GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE = config.sops.secrets.google_workspace_credentials.path;
+    GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE = googleCredentials "agent";
+    GOOGLE_AGENT_CREDENTIALS_FILE = googleCredentials "agent";
+    GOOGLE_INVENTORY_CREDENTIALS_FILE = googleCredentials "inventory";
   };
 
   home.sessionPath = [

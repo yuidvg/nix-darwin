@@ -1,0 +1,129 @@
+diff --git a/crates/google-workspace-cli/src/auth.rs b/crates/google-workspace-cli/src/auth.rs
+index 9d8847e..3331183 100644
+--- a/crates/google-workspace-cli/src/auth.rs
++++ b/crates/google-workspace-cli/src/auth.rs
+@@ -212,14 +212,7 @@ impl AccessTokenProvider for FakeTokenProvider {
+ ///    - Well-known ADC path: `~/.config/gcloud/application_default_credentials.json`
+ ///      (populated by `gcloud auth application-default login`)
+ pub async fn get_token(scopes: &[&str]) -> anyhow::Result<String> {
+-    // 0. Direct token from env var (highest priority, bypasses all credential loading)
+-    if let Ok(token) = std::env::var("GOOGLE_WORKSPACE_CLI_TOKEN") {
+-        if !token.is_empty() {
+-            return Ok(token);
+-        }
+-    }
+-
+-    let creds_file = std::env::var("GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE").ok();
++    let creds_file: Option<String> = None;
+     let config_dir = crate::auth_commands::config_dir();
+     let enc_path = credential_store::encrypted_credentials_path();
+     let default_path = config_dir.join("credentials.json");
+@@ -358,33 +351,7 @@ async fn load_credentials_inner(
+                 return parse_credential_file(enc_path, &json_str).await;
+             }
+             Err(e) => {
+-                // Decryption failed — the encryption key likely changed (e.g. after
+-                // an upgrade that migrated keys between keyring and file storage).
+-                // Remove the stale file so the next `gws auth login` starts fresh,
+-                // and fall through to other credential sources (plaintext, ADC).
+-                eprintln!(
+-                    "Warning: removing undecryptable credentials file ({}): {e:#}",
+-                    enc_path.display()
+-                );
+-                if let Err(err) = tokio::fs::remove_file(enc_path).await {
+-                    eprintln!(
+-                        "Warning: failed to remove stale credentials file '{}': {err}",
+-                        enc_path.display()
+-                    );
+-                }
+-                // Also remove stale token caches that used the old key.
+-                for cache_file in ["token_cache.json", "sa_token_cache.json"] {
+-                    let path = enc_path.with_file_name(cache_file);
+-                    if let Err(err) = tokio::fs::remove_file(&path).await {
+-                        if err.kind() != std::io::ErrorKind::NotFound {
+-                            eprintln!(
+-                                "Warning: failed to remove stale token cache '{}': {err}",
+-                                path.display()
+-                            );
+-                        }
+-                    }
+-                }
+-                // Fall through to remaining credential sources below.
++                anyhow::bail!("Isolated gws credentials could not be decrypted: {e}");
+             }
+         }
+     }
+@@ -400,36 +367,7 @@ async fn load_credentials_inner(
+         ));
+     }
+ 
+-    // 4a. GOOGLE_APPLICATION_CREDENTIALS env var (explicit path — hard error if missing)
+-    if let Ok(adc_env) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
+-        let adc_path = PathBuf::from(&adc_env);
+-        if adc_path.exists() {
+-            let content = tokio::fs::read_to_string(&adc_path)
+-                .await
+-                .with_context(|| format!("Failed to read ADC from {adc_env}"))?;
+-            return parse_credential_file(&adc_path, &content).await;
+-        }
+-        anyhow::bail!(
+-            "GOOGLE_APPLICATION_CREDENTIALS points to {adc_env}, but file does not exist"
+-        );
+-    }
+-
+-    // 4b. Well-known ADC path: ~/.config/gcloud/application_default_credentials.json
+-    // (populated by `gcloud auth application-default login`). Silent if absent.
+-    if let Some(well_known) = adc_well_known_path() {
+-        if well_known.exists() {
+-            let content = tokio::fs::read_to_string(&well_known)
+-                .await
+-                .with_context(|| format!("Failed to read ADC from {}", well_known.display()))?;
+-            return parse_credential_file(&well_known, &content).await;
+-        }
+-    }
+-
+-    anyhow::bail!(
+-        "No credentials found. Run `gws auth setup` to configure, \
+-         `gws auth login` to authenticate, or set GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE.\n\
+-         Tip: Application Default Credentials (ADC) are also supported — run \
+-         `gcloud auth application-default login` or set GOOGLE_APPLICATION_CREDENTIALS."
++    anyhow::bail!("Isolated gws: no credentials in the selected config directory; run auth login with explicitly chosen scopes."
+     )
+ }
+ 
+diff --git a/crates/google-workspace-cli/src/auth_commands.rs b/crates/google-workspace-cli/src/auth_commands.rs
+index d7571e7..b8a6431 100644
+--- a/crates/google-workspace-cli/src/auth_commands.rs
++++ b/crates/google-workspace-cli/src/auth_commands.rs
+@@ -716,18 +716,6 @@ async fn handle_export(unmasked: bool) -> Result<(), GwsError> {
+ 
+ /// Resolve OAuth client credentials from env vars or saved config file.
+ fn resolve_client_credentials() -> Result<(String, String, Option<String>), GwsError> {
+-    // 1. Try env vars first
+-    let env_id = std::env::var("GOOGLE_WORKSPACE_CLI_CLIENT_ID").ok();
+-    let env_secret = std::env::var("GOOGLE_WORKSPACE_CLI_CLIENT_SECRET").ok();
+-
+-    if let (Some(id), Some(secret)) = (env_id, env_secret) {
+-        // Still try to load project_id from config file for the scope picker
+-        let project_id = crate::oauth_config::load_client_config()
+-            .ok()
+-            .map(|c| c.project_id);
+-        return Ok((id, secret, project_id));
+-    }
+-
+     // 2. Try saved client_secret.json
+     match crate::oauth_config::load_client_config() {
+         Ok(config) => Ok((
+diff --git a/crates/google-workspace-cli/src/main.rs b/crates/google-workspace-cli/src/main.rs
+index 41dcc1e..024507e 100644
+--- a/crates/google-workspace-cli/src/main.rs
++++ b/crates/google-workspace-cli/src/main.rs
+@@ -48,7 +48,7 @@ use error::{print_error_json, GwsError};
+ #[tokio::main]
+ async fn main() {
+     // Load .env file if present (silently ignored if missing)
+-    let _ = dotenvy::dotenv();
++    // Isolated entrypoints preserve cwd but never import caller/parent .env files.
+ 
+     // Initialize structured logging (no-op if env vars are unset)
+     logging::init_logging();
