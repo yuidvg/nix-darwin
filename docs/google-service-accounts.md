@@ -1,5 +1,7 @@
 # Google service accounts
 
+For personal/work user OAuth, see [gws user accounts](gws-user-accounts.md).
+
 Personal account bindings live in `personal.nix`. JSON keys are encrypted as
 individual string values in `secrets.yaml`; Home Manager's sops-nix decrypts them
 to user-owned runtime files with mode `0600`. Private keys never enter Nix source

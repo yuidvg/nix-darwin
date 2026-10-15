@@ -26,6 +26,7 @@ def update_parameters(text, key, name, current, desired):
     model = ["models", 0] if key == "providers" else ["models", "local-qwen"]
     context = [*model, "contextWindow"] if key == "providers" else [*model, "limit", "context"]
     display_name = [*model, "name"]
+    output = [*model, "maxTokens"] if key == "providers" else [*model, "limit", "output"]
 
     def parent_at(data, fields):
         for field in fields[:-1]:
@@ -46,7 +47,14 @@ def update_parameters(text, key, name, current, desired):
                 raise ValueError("context must be a positive multiple of 1024")
             if title != f"Local Qwen ({size // 1024}K; capabilities pending verification)":
                 raise ValueError("custom model names are left unchanged")
-        for fields in (endpoint, context, display_name):
+        old_output = parent_at(current, output)[output[-1]]
+        new_output = parent_at(desired, output)[output[-1]]
+        if old_output != new_output and not (
+            type(old_output) is int and type(new_output) is int
+            and old_output == 4096 and new_output == 8192
+        ):
+            raise ValueError("custom output limits are left unchanged")
+        for fields in (endpoint, context, display_name, output):
             old = parent_at(candidate, fields)[fields[-1]]
             new = parent_at(desired, fields)[fields[-1]]
             parent_at(candidate, fields)[fields[-1]] = new

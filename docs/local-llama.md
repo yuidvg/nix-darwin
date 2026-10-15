@@ -90,14 +90,14 @@ llama-on
 
 導入済みpi 1.0.2、Kilo CLI (`kilocode`) 7.8.3。
 確認したVS Code/Cursorの拡張ディレクトリにはKilo拡張はなかった。
-provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:43127/v1`、context 65536、出力上限4096。
+provider `local-llama`、モデル `local-qwen`、API `http://127.0.0.1:43127/v1`、context 65536、出力上限8192。
 ローカル専用ダミー値 `local-only-unused` を使い、認証ファイルは変更しない。
 適用時にmodels.jsonとkilo.json[c]へproviderを追加する。既存設定・JSONCコメントを保持し、初回のみ `.before-local-llama` へバックアップする。
-同名providerは、それ以外の内容が宣言と一致するときだけローカル接続先のポート、context、生成したモデル表示名の変更を反映し、既存コメント・認証値を保持する。それ以外の差異や管理されたsymlinkの場合は変更を拒否する。
+同名providerは、それ以外の内容が宣言と一致するときだけローカル接続先のポート、context、生成したモデル表示名、および既定の出力上限4096→8192の変更を反映し、既存コメント・認証値を保持する。それ以外の差異や管理されたsymlinkの場合は変更を拒否する。
 
 piの `~/.pi/agent/settings.json` には、モデル別の圧縮設定も追加する。
-`compaction.modelOverrides["local-llama/local-qwen"]` の `reserveTokens = 8192`、`keepRecentTokens = 16384` をNixで管理する。
-64Kのうち8Kを新規入力・ツール結果と4Kの応答用に確保し、入力が56Kを超えたら古い履歴を要約して直近約16Kを保持する。
+`compaction.modelOverrides["local-llama/local-qwen"]` の `reserveTokens = 16384`、`keepRecentTokens = 16384` をNixで管理する。
+64Kのうち16Kを新規入力・ツール結果と8Kの要約・応答用に確保し、入力が48Kを超えたら古い履歴を要約して直近約16Kを保持する。
 以前の16K設定にpi既定の予約16K・保持20Kを組み合わせると、開始直後から圧縮対象になり、`Nothing to compact (session too small)` が出たため、モデル別に予算を指定している。
 他モデルの圧縮設定、グローバル設定、テーマなどの既存値は保持する。settings.jsonは通常の編集可能なJSONのままで、追加時に整形・バックアップする。
 起動中のpiには再起動で反映する。保存済みの会話を続ける場合は、同じ作業ディレクトリで下記コマンドに `--resume` を付け、`--no-session` を外して対象の会話を選ぶ。

@@ -25,6 +25,8 @@ def launch(binary, directory, args):
     env["GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"] = "file"
     if not help_only and not login:
         if (directory / "credentials.enc").is_file():
+            if not (directory / ".encryption_key").is_file():
+                sys.exit(f"Missing encryption key in {directory}; refusing to replace it or fall back.")
             # This path decrypts without deleting a corrupt file or refreshing tokens.
             result = subprocess.run([binary, "auth", "export"], env=env,
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -33,6 +35,8 @@ def launch(binary, directory, args):
         else:
             try:
                 credential = json.loads((directory / "credentials.json").read_text())
+                if credential.get("type") != "authorized_user":
+                    raise ValueError()
                 if not all(isinstance(credential.get(k), str) and credential[k]
                            for k in ("client_id", "client_secret", "refresh_token")):
                     raise ValueError()

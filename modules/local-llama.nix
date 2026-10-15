@@ -12,7 +12,7 @@ let
     port = 43127;
     context = 65536;
   };
-  outputTokens = 4096;
+  outputTokens = 8192;
   modelName = "Local Qwen (${toString (builtins.div settings.context 1024)}K; capabilities pending verification)";
   baseUrl = "http://${settings.host}:${toString settings.port}/v1";
   controlConfig = pkgs.writeText "llama-control.json" (
@@ -51,7 +51,7 @@ let
           }
         ];
       };
-      # Leave room for a new input/tool result as well as the 4K response.
+      # Leave room for a new input/tool result as well as the 8K summary/response.
       # Scope these budgets to this model; cloud models keep theirs.
       piCompaction."local-llama/local-qwen" = {
         reserveTokens = outputTokens * 2;

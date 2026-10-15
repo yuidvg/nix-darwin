@@ -1,8 +1,42 @@
 diff --git a/crates/google-workspace-cli/src/auth.rs b/crates/google-workspace-cli/src/auth.rs
-index 9d8847e..3331183 100644
+index 9d8847e..023e419 100644
 --- a/crates/google-workspace-cli/src/auth.rs
 +++ b/crates/google-workspace-cli/src/auth.rs
-@@ -212,14 +212,7 @@ impl AccessTokenProvider for FakeTokenProvider {
+@@ -87,30 +87,10 @@ async fn refresh_token_with_reqwest(
+ /// 2. `project_id` from the OAuth client configuration (`client_secret.json`).
+ /// 3. `quota_project_id` from Application Default Credentials (ADC).
+ pub fn get_quota_project() -> Option<String> {
+-    // 1. Explicit environment variable (highest priority)
+-    if let Ok(project_id) = std::env::var("GOOGLE_WORKSPACE_PROJECT_ID") {
+-        if !project_id.is_empty() {
+-            return Some(project_id);
+-        }
+-    }
+-
+-    // 2. Project ID from the OAuth client configuration (set via `gws auth setup`)
+-    if let Ok(config) = crate::oauth_config::load_client_config() {
+-        if !config.project_id.is_empty() {
+-            return Some(config.project_id);
+-        }
+-    }
+-
+-    // 3. Fallback to Application Default Credentials (ADC)
+-    let path = std::env::var("GOOGLE_APPLICATION_CREDENTIALS")
++    crate::oauth_config::load_client_config()
+         .ok()
+-        .map(PathBuf::from)
+-        .or_else(adc_well_known_path)?;
+-    let content = std::fs::read_to_string(path).ok()?;
+-    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+-    json.get("quota_project_id")
+-        .and_then(|v| v.as_str())
+-        .map(|s| s.to_string())
++        .map(|config| config.project_id)
++        .filter(|project| !project.is_empty())
+ }
+
+ /// Returns the well-known Application Default Credentials path:
+@@ -212,14 +192,7 @@ impl AccessTokenProvider for FakeTokenProvider {
  ///    - Well-known ADC path: `~/.config/gcloud/application_default_credentials.json`
  ///      (populated by `gcloud auth application-default login`)
  pub async fn get_token(scopes: &[&str]) -> anyhow::Result<String> {
@@ -18,7 +52,7 @@ index 9d8847e..3331183 100644
      let config_dir = crate::auth_commands::config_dir();
      let enc_path = credential_store::encrypted_credentials_path();
      let default_path = config_dir.join("credentials.json");
-@@ -358,33 +351,7 @@ async fn load_credentials_inner(
+@@ -358,33 +331,7 @@ async fn load_credentials_inner(
                  return parse_credential_file(enc_path, &json_str).await;
              }
              Err(e) => {
@@ -53,10 +87,10 @@ index 9d8847e..3331183 100644
              }
          }
      }
-@@ -400,36 +367,7 @@ async fn load_credentials_inner(
+@@ -400,36 +347,7 @@ async fn load_credentials_inner(
          ));
      }
- 
+
 -    // 4a. GOOGLE_APPLICATION_CREDENTIALS env var (explicit path — hard error if missing)
 -    if let Ok(adc_env) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS") {
 -        let adc_path = PathBuf::from(&adc_env);
@@ -90,13 +124,64 @@ index 9d8847e..3331183 100644
 +    anyhow::bail!("Isolated gws: no credentials in the selected config directory; run auth login with explicitly chosen scopes."
      )
  }
- 
+
+@@ -993,3 +911,50 @@ mod tests {
+         assert_eq!(get_quota_project(), Some("my-project-123".to_string()));
+     }
+ }
++
++#[cfg(test)]
++mod isolated_tests {
++    use super::*;
++    use tempfile::tempdir;
++
++    #[tokio::test]
++    #[serial_test::serial]
++    async fn isolated_ignores_inherited_token_credentials_and_adc() {
++        let dir = tempdir().unwrap();
++        let adc = dir.path().join("adc.json");
++        std::fs::write(&adc, r#"{"type":"authorized_user","client_id":"fake","client_secret":"fake","refresh_token":"fake","quota_project_id":"poison"}"#).unwrap();
++        std::env::set_var("GOOGLE_WORKSPACE_CLI_CONFIG_DIR", dir.path());
++        std::env::set_var("GOOGLE_WORKSPACE_CLI_TOKEN", "poison");
++        std::env::set_var("GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE", &adc);
++        std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", &adc);
++        std::env::set_var("GOOGLE_WORKSPACE_PROJECT_ID", "poison");
++        assert!(get_token(&[]).await.unwrap_err().to_string().contains("Isolated gws"));
++        assert_eq!(get_quota_project(), None);
++        for key in ["GOOGLE_WORKSPACE_CLI_CONFIG_DIR", "GOOGLE_WORKSPACE_CLI_TOKEN", "GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE", "GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_WORKSPACE_PROJECT_ID"] {
++            std::env::remove_var(key);
++        }
++    }
++
++    #[tokio::test]
++    #[serial_test::serial]
++    async fn isolated_corrupt_encrypted_stops_and_preserves_files() {
++        let dir = tempdir().unwrap();
++        let enc = dir.path().join("credentials.enc");
++        let plain = dir.path().join("credentials.json");
++        std::fs::write(&enc, b"broken").unwrap();
++        std::fs::write(&plain, r#"{"type":"authorized_user","client_id":"fake","client_secret":"fake","refresh_token":"fake"}"#).unwrap();
++        let result = load_credentials_inner(None, &enc, &plain).await;
++        assert!(result.is_err());
++        assert_eq!(std::fs::read(&enc).unwrap(), b"broken");
++        assert!(plain.exists());
++    }
++
++    #[tokio::test]
++    async fn isolated_plain_oauth_credentials_load() {
++        let dir = tempdir().unwrap();
++        let plain = dir.path().join("credentials.json");
++        std::fs::write(&plain, r#"{"type":"authorized_user","client_id":"fake","client_secret":"fake","refresh_token":"fake"}"#).unwrap();
++        let result = load_credentials_inner(None, &dir.path().join("missing.enc"), &plain).await;
++        assert!(matches!(result.unwrap(), Credential::AuthorizedUser(_)));
++    }
++}
 diff --git a/crates/google-workspace-cli/src/auth_commands.rs b/crates/google-workspace-cli/src/auth_commands.rs
 index d7571e7..b8a6431 100644
 --- a/crates/google-workspace-cli/src/auth_commands.rs
 +++ b/crates/google-workspace-cli/src/auth_commands.rs
 @@ -716,18 +716,6 @@ async fn handle_export(unmasked: bool) -> Result<(), GwsError> {
- 
+
  /// Resolve OAuth client credentials from env vars or saved config file.
  fn resolve_client_credentials() -> Result<(String, String, Option<String>), GwsError> {
 -    // 1. Try env vars first
@@ -124,6 +209,6 @@ index 41dcc1e..024507e 100644
      // Load .env file if present (silently ignored if missing)
 -    let _ = dotenvy::dotenv();
 +    // Isolated entrypoints preserve cwd but never import caller/parent .env files.
- 
+
      // Initialize structured logging (no-op if env vars are unset)
      logging::init_logging();
