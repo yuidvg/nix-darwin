@@ -10,6 +10,7 @@ let
   expandTemplatesDir = import ../lib/expand-templates-dir.nix { inherit pkgs lib; };
 
   xcodebuildmcp = import ../packages/xcodebuildmcp { inherit pkgs; };
+  impeccable = import ../packages/impeccable { inherit pkgs; };
   cosenseMcpPackage = import ../packages/cosense-mcp-server { inherit pkgs; };
 
   cosenseSidSecret = "${config.home.homeDirectory}/.config/sops-nix/secrets/scrapbox_sid";
@@ -160,10 +161,24 @@ let
   expandedSkillSources = builtins.listToAttrs (
     map (name: {
       inherit name;
-      value = expandTemplatesDir {
-        templateScope = ../prompt;
-        src = sharedSkillsDir + "/${name}";
-      };
+      value =
+        let
+          expanded = expandTemplatesDir {
+            templateScope = ../prompt;
+            src = sharedSkillsDir + "/${name}";
+          };
+        in
+        if name == "impeccable" then
+          pkgs.runCommand "impeccable-skill" { } ''
+            cp -R ${expanded} "$out"
+            chmod -R u+w "$out"
+            # Bind the launcher to the Nix-pinned engine, avoiding runtime downloads.
+            substituteInPlace "$out/scripts/impeccable" \
+              --replace-fail 'set -eu' 'set -eu
+            IMPECCABLE_BIN=${impeccable}/bin/impeccable'
+          ''
+        else
+          expanded;
     }) sharedSkillNames
   );
 
