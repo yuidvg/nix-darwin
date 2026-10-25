@@ -133,6 +133,9 @@ in
     gemini_api_key = { };
     anthropic_api_key = { };
     openai_api_key = { };
+    arnict_api_key = {
+      mode = "0600";
+    };
     cosense_pat = {
       mode = "0600";
     };
@@ -191,6 +194,9 @@ in
   # Personal zsh config (secrets loading)
   programs.zsh.initContent = lib.mkOrder 1100 ''
     # Load secrets from sops-nix
+    if [[ -z "''${ARNICT_API_KEY-}" && -r "${config.sops.secrets.arnict_api_key.path}" ]]; then
+      export ARNICT_API_KEY="$(${pkgs.coreutils}/bin/tr -d '\r\n' < "${config.sops.secrets.arnict_api_key.path}")"
+    fi
     [[ -r "${config.sops.secrets.openrouter_api_key.path}" ]] && \
       export OPENROUTER_API_KEY="$(cat ${config.sops.secrets.openrouter_api_key.path})"
     [[ -r "${config.sops.secrets.gemini_api_key.path}" ]] && \
@@ -203,6 +209,9 @@ in
   '';
 
   programs.fish.interactiveShellInit = lib.mkAfter ''
+    if test -z "$ARNICT_API_KEY"; and test -r "${config.sops.secrets.arnict_api_key.path}"
+      set -gx ARNICT_API_KEY (${pkgs.coreutils}/bin/tr -d '\r\n' < "${config.sops.secrets.arnict_api_key.path}")
+    end
     if test -z "$COSENSE_PAT"; and test -r "${config.sops.secrets.cosense_pat.path}"
       set -gx COSENSE_PAT (${pkgs.coreutils}/bin/tr -d '\r\n' < "${config.sops.secrets.cosense_pat.path}")
     end
