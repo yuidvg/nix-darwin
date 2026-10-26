@@ -6,6 +6,63 @@
   ...
 }:
 let
+  piModels = pkgs.writeText "pi-arnict-models.json" (
+    builtins.toJSON {
+      "$schema" = "https://pi.dev/schemas/models.schema.json";
+      providers.arnict = {
+        baseUrl = "https://api.arnict.com/v1";
+        api = "openai-completions";
+        apiKey = "$ARNICT_API_KEY";
+        models = [
+          { id = "zai/glm-5.3-uncensored"; }
+          {
+            id = "zai/glm-5.3-flash-uncensored";
+            input = [
+              "text"
+              "image"
+            ];
+          }
+        ];
+      };
+    }
+  );
+  # Keep Pi's other providers mutable; only the declared providers are replaced.
+  piModelsMerge = pkgs.writeText "merge-pi-models.py" ''
+    import json
+    import os
+    from pathlib import Path
+    import shutil
+    import sys
+    import tempfile
+
+    managed = json.loads(Path(sys.argv[1]).read_text())
+    path = Path(sys.argv[2])
+    if path.is_symlink():
+        raise ValueError(f"refusing to replace managed symlink: {path}")
+    original = path.read_text() if path.exists() else "{}"
+    data = json.loads(original)
+    if not isinstance(data, dict) or not isinstance(data.get("providers", {}), dict):
+        raise ValueError("Pi models and providers must be objects")
+    data["$schema"] = managed["$schema"]
+    data.setdefault("providers", {}).update(managed["providers"])
+    if data == json.loads(original):
+        sys.exit(0)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    backup = path.with_name(path.name + ".before-nix-arnict")
+    if path.exists() and not backup.exists():
+        shutil.copy2(path, backup)
+        backup.chmod(0o600)
+    fd, temporary = tempfile.mkstemp(dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as output:
+            output.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+  '';
+
   # Identity names are independent of the CLI consuming the key.
   googleServiceAccounts = {
     agent = {
@@ -152,6 +209,16 @@ in
   # Codex CLI config is managed centrally by modules/claude-code.nix
   # (codexDefaults, tomlkit non-destructive merge). `model` is intentionally
   # left unmanaged — set it ad hoc via codex /model; rebuilds won't clobber it.
+
+  home.activation.piArnictModels =
+    lib.hm.dag.entryAfter
+      [
+        "writeBoundary"
+        "localLlamaProviders"
+      ]
+      ''
+        run ${pkgs.python3}/bin/python3 ${piModelsMerge} ${piModels} ${lib.escapeShellArg "${config.home.homeDirectory}/.pi/agent/models.json"}
+      '';
 
   # Personal packages
   home.packages =
