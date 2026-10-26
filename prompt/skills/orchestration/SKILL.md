@@ -3,7 +3,7 @@ name: orchestration
 description: >-
   Coordinate supervised Orca workers: threaded messages, blocking ask/reply,
   task dispatch, worker_done/escalation waits, task DAGs, decision gates,
-  coordinator loops, and decomposing work across agents. Use `orca-cli` for full
+  coordinator loops, and decomposing work across agents. Use the Orca CLI for full
   ownership handoffs — "hand off", "handoff", "handover", "give this to another
   agent", "another worktree" — unless asked to supervise, monitor, or coordinate
   a DAG, and for terminal control, lightweight terminal prompts, shell commands,
@@ -18,8 +18,8 @@ purpose so it can never drift from the binary that will actually run your comman
 
 Engage Orca orchestration whenever you need structured multi-agent coordination: threaded
 messages, blocking ask/reply flows, task dispatch, worker_done/escalation waits, task DAGs,
-decision gates, coordinator loops, or decomposing work across agents. Use the orca-cli skill
-instead for full ownership handoffs ("hand off", "handoff", "handover", "give this to
+decision gates, coordinator loops, or decomposing work across agents. Use the Orca CLI directly
+for full ownership handoffs ("hand off", "handoff", "handover", "give this to
 another agent", "another worktree") when the user did not ask to supervise, monitor, wait
 for results, or coordinate a DAG — and for ordinary terminal control, shell commands,
 worktree management, and the built-in browser. Coordination requires real Orca runtime
