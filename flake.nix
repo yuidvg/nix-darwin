@@ -31,6 +31,8 @@
     mirror.url = "git+file:///Users/yui/Developer/diverge/deleted";
     mirror.inputs.nixpkgs.follows = "nixpkgs";
 
+    wifi-monitor.url = "github:yuidvg/wifi_monitor/main";
+
     # InVPN keeps its qualified Python/sing-box versions in the product flake.
     invpn.url = "github:yuidvg/in-vpn/v0.1.0";
   };
@@ -301,7 +303,10 @@
                 ++ (nixpkgs.lib.optional (secretsFile != null) inputs.sops-nix.homeManagerModules.sops);
 
                 programs.home-manager.enable = true;
-                services.wifi-monitor.enable = true;
+                services.wifi-monitor = {
+                  enable = true;
+                  package = inputs.wifi-monitor.packages.${system}.default;
+                };
                 home.username = userConfig.username;
                 home.homeDirectory = "/Users/${userConfig.username}";
                 home.stateVersion = "24.05";

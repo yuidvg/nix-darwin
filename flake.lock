@@ -473,6 +473,22 @@
         "type": "indirect"
       }
     },
+    "nixpkgs_9": {
+      "locked": {
+        "lastModified": 1793147889,
+        "narHash": "sha256-+//qXhkXCKTFoVCHAYhoEP1ZnPSx/b4IHdLI1ZMz3UU=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "36173dbc6ff2b383c4d03b002fd1ea58e2e4dbcd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-26.05-darwin",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "pyproject-build-systems": {
       "inputs": {
         "nixpkgs": [
@@ -535,7 +551,8 @@
         "mirror": "mirror",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs_7",
-        "sops-nix": "sops-nix"
+        "sops-nix": "sops-nix",
+        "wifi-monitor": "wifi-monitor"
       }
     },
     "sops-nix": {
@@ -697,6 +714,25 @@
       "original": {
         "owner": "pyproject-nix",
         "repo": "uv2nix",
+        "type": "github"
+      }
+    },
+    "wifi-monitor": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_9"
+      },
+      "locked": {
+        "lastModified": 1793452699,
+        "narHash": "sha256-JSc8l/Ix6Xy8wMFtqmc2ALBOjGcQFbbr8JOoHRDLT28=",
+        "owner": "yuidvg",
+        "repo": "wifi_monitor",
+        "rev": "bd01f21c90929699acc6c64cc4f70c9308aa50eb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "yuidvg",
+        "ref": "main",
+        "repo": "wifi_monitor",
         "type": "github"
       }
     }

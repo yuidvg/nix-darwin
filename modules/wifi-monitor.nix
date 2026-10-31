@@ -1,27 +1,25 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 let
   cfg = config.services.wifi-monitor;
-  monitor = pkgs.writeScriptBin "wifi-monitor" ''
-    #!${pkgs.python3}/bin/python3
-    ${builtins.readFile ../scripts/wifi-monitor.py}
-  '';
 in
 {
-  options.services.wifi-monitor.enable = lib.mkEnableOption "rolling 30-day Wi-Fi diagnostics";
+  options.services.wifi-monitor = {
+    enable = lib.mkEnableOption "rolling 30-day Wi-Fi diagnostics";
+    package = lib.mkOption { type = lib.types.package; };
+  };
 
   config = lib.mkIf cfg.enable {
-    home.packages = [ monitor ];
+    home.packages = [ cfg.package ];
     launchd.agents.wifi-monitor = {
       enable = true;
       config = {
-        ProgramArguments = [ "${monitor}/bin/wifi-monitor" ];
+        ProgramArguments = [ "${cfg.package}/bin/wifi-monitor" ];
         RunAtLoad = true;
-        StartInterval = 60;
+        StartInterval = 15;
         ProcessType = "Background";
         LowPriorityIO = true;
       };

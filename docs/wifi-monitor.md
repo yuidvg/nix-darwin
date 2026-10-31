@@ -2,15 +2,15 @@
 
 `services.wifi-monitor.enable = true` in this machine's Home Manager configuration
 enables `org.nix-community.home.wifi-monitor`. The module is imported through
-`modules/shared-scripts.nix`; the collector source is `scripts/wifi-monitor.py`.
+`modules/shared-scripts.nix`; the collector comes from the pinned [wifi_monitor flake](https://github.com/yuidvg/wifi_monitor).
 
 ## Operation
 
-- launchd runs one bounded sample every 60 seconds and at login.
+- launchd runs a bounded sample every 15 seconds and at login. CoreWLAN signal, noise, channel, ping and DNS run each time. Extended probes run once per minute.
 - Samples append to compressed hourly files in
   `~/Library/Logs/wifi-monitor/samples-<hour-unix-time>.jsonl.gz`.
   Existing uncompressed samples are preserved until their 30-day expiry.
-- Each sample records Wi-Fi interface/IP/DHCP, the default route, DNS settings,
+- The detailed sample records Wi-Fi interface/IP/DHCP, the default route, DNS settings,
   interface counters, three pings to the Wi-Fi DHCP router, three pings to
   `1.1.1.1` and `8.8.8.8`, a system DNS lookup, and an HTTPS request to Apple's connectivity
   test page. Internet probes follow system routing, including an active VPN;
@@ -53,10 +53,7 @@ ls -lt ~/Library/Logs/wifi-monitor/samples-*.jsonl.gz | head
 
 After normal activation, `wifi-monitor` takes an immediate extra sample.
 `wifi-monitor --summary --hours 720` summarizes 30 days without network requests.
-Before the next full system activation, invoke the built executable listed in
-the live plist, or use `python3 scripts/wifi-monitor.py --summary --hours 720`. For
-development, `python3 scripts/wifi-monitor.py --directory /tmp/wifi-monitor-check`
-uses a separate directory.
+For development, use `wifi-monitor --directory /tmp/wifi-monitor-check`.
 
 ## Findings on 2026-10-05
 
