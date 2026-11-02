@@ -758,11 +758,11 @@
         "nixpkgs": "nixpkgs_10"
       },
       "locked": {
-        "lastModified": 1793452699,
-        "narHash": "sha256-JSc8l/Ix6Xy8wMFtqmc2ALBOjGcQFbbr8JOoHRDLT28=",
+        "lastModified": 1793584138,
+        "narHash": "sha256-fdQHN/lWUR5w2SFEXae9XWmSDLJHA7IVTqTbz+gLl/Q=",
         "owner": "yuidvg",
         "repo": "wifi_monitor",
-        "rev": "bd01f21c90929699acc6c64cc4f70c9308aa50eb",
+        "rev": "43faf43381f1e88a1bc0b5f95eb5420c80927eaf",
         "type": "github"
       },
       "original": {

@@ -7,6 +7,14 @@ enables `org.nix-community.home.wifi-monitor`. The module is imported through
 ## Operation
 
 - launchd runs a bounded sample every 15 seconds and at login. CoreWLAN signal, noise, channel, ping and DNS run each time. Extended probes run once per minute.
+- Each sample times the macOS system lookup and parallel A queries for
+  `www.apple.com.` to the Wi-Fi DHCP router, Tailscale's DNS resolver when
+  configured, and a public resolver. Detailed samples also capture curl's DNS
+  phase. A successful lookup taking at least 2 seconds on the system, curl,
+  Tailscale or router path is enough to flag one sample. System and curl
+  resolution timeouts lasting at least 2 seconds also qualify. A single direct
+  resolver timeout is kept for comparison. The older logs have no direct
+  Tailscale timings.
 - Samples append to compressed hourly files in
   `~/Library/Logs/wifi-monitor/samples-<hour-unix-time>.jsonl.gz`.
   Existing uncompressed samples are preserved until their 30-day expiry.
