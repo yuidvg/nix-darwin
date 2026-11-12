@@ -33,6 +33,11 @@
 
     wifi-monitor.url = "github:yuidvg/wifi_monitor/main";
 
+    # Personal agent skills. Pinned to the extraction merge. The skills flake
+    # keeps its own nixpkgs (nixos-26.05) so x86_64-darwin still evaluates;
+    # do not follow this flake's nixpkgs.
+    skills.url = "github:yuidvg/skills/7abaa12c96aacfcf130142fb1c3194256237c693";
+
     # InVPN keeps its qualified Python/sing-box versions in the product flake.
     invpn.url = "github:yuidvg/in-vpn/v0.1.0";
   };
@@ -107,7 +112,8 @@
           # Shared skills → Claude Desktop uploadable ZIPs
           packages.desktop-skills = import ./packages/desktop-skills {
             inherit pkgs;
-            skillsDir = ./prompt/skills;
+            skillsDir = "${inputs.skills}/skills";
+            skillNames = import ./lib/enabled-skills.nix;
           };
 
           # Copy skill ZIPs to ~/Desktop (or custom dir)
@@ -273,6 +279,7 @@
             home-manager.backupFileExtension = "backup";
             home-manager.extraSpecialArgs = {
               inherit userConfig secretsFile;
+              skills = inputs.skills;
             };
             home-manager.users.${userConfig.username} =
               {

@@ -123,7 +123,8 @@ nix build .#darwinConfigurations."Yuis-MacBook-Pro".system
 | `modules/claude-code.nix` | Claude Code / Codex / Gemini / Cursor の dotfiles・skills・MCP |
 | `modules/shared-scripts.nix` | スクリプト群の home.packages 化 |
 | `personal.nix` | SOPS secrets、個人パッケージ、codex/zsh/git 個人設定 |
-| `prompt/` | AI プロンプト・skills (Claude/Codex 共有ソース) |
+| `prompt/` | AI プロンプト本文。skills の正本は [yuidvg/skills](https://github.com/yuidvg/skills) |
+| `lib/enabled-skills.nix` | このマシンに入れる skill 名 (`skills.enable`)。flake が export する名前を自動では入れない |
 | `packages/` | codelayer / xcodebuildmcp / desktop-skills |
 | `scripts/` | Haskell/Python/Shell ソース |
 | `secrets.yaml`, `.sops.yaml` | sops-nix 暗号化 secrets |
@@ -147,6 +148,10 @@ nix build .#darwinConfigurations."Yuis-MacBook-Pro".system
 
 - **定義は温存**: `prompt/*.md` (本体・wrapper テンプレート) は一切変更していない。
   skills / agents / commands / MCP / settings も無影響。
+- **skills**: `github:yuidvg/skills` を `skills.enable` で入れる。一覧は
+  `lib/enabled-skills.nix`。`prompt/skills` は置かない。`@[…]` を `prompt/*.md`
+  から展開する処理、impeccable の `IMPECCABLE_BIN`、XcodeBuildMCP、Claude Desktop
+  用 ZIP、Claude の managed settings はこのリポジトリに残す。
 - **再接続**: `mkAgentAttrs` の `{ "${instructionPath}".text = ""; }` を元の
   `expandTemplate` 投影に戻せば再 wiring される (`instructionTemplate` は
   agentProfiles に dormant な再接続ポイントとして残してある)。Gemini / Cursor は

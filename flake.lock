@@ -360,6 +360,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_10": {
+      "locked": {
+        "lastModified": 1793147889,
+        "narHash": "sha256-+//qXhkXCKTFoVCHAYhoEP1ZnPSx/b4IHdLI1ZMz3UU=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "36173dbc6ff2b383c4d03b002fd1ea58e2e4dbcd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-26.05-darwin",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs_2": {
       "locked": {
         "lastModified": 1766532406,
@@ -475,16 +491,16 @@
     },
     "nixpkgs_9": {
       "locked": {
-        "lastModified": 1793147889,
-        "narHash": "sha256-+//qXhkXCKTFoVCHAYhoEP1ZnPSx/b4IHdLI1ZMz3UU=",
+        "lastModified": 1794165970,
+        "narHash": "sha256-XuAV2cUwaod3Bt4XFVqiXz3v1w2ex16W6Sv4S7EWres=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "36173dbc6ff2b383c4d03b002fd1ea58e2e4dbcd",
+        "rev": "ac588ef1c914865dad517b337ea0eb9694a4021c",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixpkgs-26.05-darwin",
+        "ref": "nixos-26.05",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -551,8 +567,28 @@
         "mirror": "mirror",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs_7",
+        "skills": "skills",
         "sops-nix": "sops-nix",
         "wifi-monitor": "wifi-monitor"
+      }
+    },
+    "skills": {
+      "inputs": {
+        "nixpkgs": "nixpkgs_9"
+      },
+      "locked": {
+        "lastModified": 1794478238,
+        "narHash": "sha256-zT98oc3eOTHDg4Lqmxt4l68b/l89SN20biQLU7WC7Xc=",
+        "owner": "yuidvg",
+        "repo": "skills",
+        "rev": "7abaa12c96aacfcf130142fb1c3194256237c693",
+        "type": "github"
+      },
+      "original": {
+        "owner": "yuidvg",
+        "repo": "skills",
+        "rev": "7abaa12c96aacfcf130142fb1c3194256237c693",
+        "type": "github"
       }
     },
     "sops-nix": {
@@ -719,7 +755,7 @@
     },
     "wifi-monitor": {
       "inputs": {
-        "nixpkgs": "nixpkgs_9"
+        "nixpkgs": "nixpkgs_10"
       },
       "locked": {
         "lastModified": 1793452699,

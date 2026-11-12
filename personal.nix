@@ -233,8 +233,8 @@ in
     ])
     ++ lib.mapAttrsToList withGoogleAccount googleServiceAccounts;
 
-  # NOTE: purchase-research skill is now auto-enumerated by modules/claude-code.nix
-  # (single repo → prompt/skills/ is the canonical source for all skills).
+  # purchase-research is installed with the other skills from github:yuidvg/skills
+  # (lib/enabled-skills.nix). This file does not project skills.
 
   # Stable interface for devShells; wrappers source these same store files.
   xdg.configFile = lib.mapAttrs' (

@@ -4,10 +4,16 @@
   config,
   pkgs,
   lib,
+  skills,
   ...
 }:
 let
   expandTemplatesDir = import ../lib/expand-templates-dir.nix { inherit pkgs lib; };
+  enabledSkills = import ../lib/enabled-skills.nix;
+  skillSystem = pkgs.stdenv.hostPlatform.system;
+  # Source tree of github:yuidvg/skills. Packaged links come from the Home
+  # Manager module; this path is for host adapters that read SKILL.md.
+  skillRoot = "${skills}/skills";
 
   xcodebuildmcp = import ../packages/xcodebuildmcp { inherit pkgs; };
   impeccable = import ../packages/impeccable { inherit pkgs; };
@@ -48,7 +54,8 @@ let
   # Claude Desktop uploadable skill ZIPs
   desktopSkills = import ../packages/desktop-skills {
     inherit pkgs;
-    skillsDir = sharedSkillsDir;
+    skillsDir = skillRoot;
+    skillNames = enabledSkills;
   };
 
   # XcodeBuildMCP: shared between CLI and Xcode Agent
@@ -152,105 +159,119 @@ let
   # All commands must use absolute Nix store paths.
   xcodeAgentConfigDir = "Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig";
 
-  # One canonical skillpack is projected into Claude Code, Codex, and Pi.
-  sharedSkillsDir = ../prompt/skills;
-  sharedSkillEntries = builtins.readDir sharedSkillsDir;
-  sharedSkillNames = builtins.filter (name: sharedSkillEntries.${name} == "directory") (
-    builtins.attrNames sharedSkillEntries
-  );
-  expandedSkillSources = builtins.listToAttrs (
-    map (name: {
-      inherit name;
-      value =
-        let
-          expanded = expandTemplatesDir {
-            templateScope = ../prompt;
-            src = sharedSkillsDir + "/${name}";
-          };
-        in
-        if name == "impeccable" then
-          pkgs.runCommand "impeccable-skill" { } ''
-            cp -R ${expanded} "$out"
-            chmod -R u+w "$out"
-            # Bind the launcher to the Nix-pinned engine, avoiding runtime downloads.
-            substituteInPlace "$out/scripts/impeccable" \
-              --replace-fail 'set -eu' 'set -eu
-            IMPECCABLE_BIN=${impeccable}/bin/impeccable'
-          ''
-        else
-          expanded;
-    }) sharedSkillNames
-  );
+  # Host adapters layered on the skills flake. The flake links the packaged
+  # folder; these rewrites stay here because they bind this machine.
+  #
+  # `@[...]` includes resolve against prompt/*.md. No skill SKILL.md uses
+  # them today, so that path does not replace the packaged link unless an
+  # include appears. The impeccable launcher is always rebound to the
+  # Nix-pinned engine.
+  skillHasPromptInclude =
+    name:
+    let
+      skillMd = skillRoot + "/${name}/SKILL.md";
+    in
+    builtins.pathExists skillMd && lib.hasInfix "@[" (builtins.readFile skillMd);
 
-  # Codex and Pi require SKILL.md with frontmatter. Keep the original Claude
-  # sources intact and normalize their portable projections at build time.
-  portableSkillSources = builtins.listToAttrs (
-    map (name: {
-      inherit name;
-      value = pkgs.runCommand "portable-skill-${name}" { } ''
-        mkdir -p "$out"
-        cp -R ${expandedSkillSources.${name}}/. "$out/"
+  expandSkill =
+    name:
+    expandTemplatesDir {
+      templateScope = ../prompt;
+      src = skillRoot + "/${name}";
+    };
 
-        if [ ! -f "$out/SKILL.md" ] && [ -f "$out/index.md" ]; then
-          cp "$out/index.md" "$out/SKILL.md"
+  bindImpeccable =
+    src:
+    pkgs.runCommand "impeccable-skill" { } ''
+      cp -R ${src} "$out"
+      chmod -R u+w "$out"
+      # Bind the launcher to the Nix-pinned engine, avoiding runtime downloads.
+      substituteInPlace "$out/scripts/impeccable" \
+        --replace-fail 'set -eu' "set -eu"$'\n'"IMPECCABLE_BIN=${impeccable}/bin/impeccable"
+    '';
+
+  # Codex and Pi require SKILL.md with frontmatter. Used only after a host
+  # rewrite; the skills module already does this for packaged folders.
+  portableSkill =
+    name: src:
+    pkgs.runCommand "portable-skill-${name}" { } ''
+      mkdir -p "$out"
+      cp -R ${src}/. "$out/"
+
+      if [ ! -f "$out/SKILL.md" ] && [ -f "$out/index.md" ]; then
+        cp "$out/index.md" "$out/SKILL.md"
+      fi
+
+      if [ -f "$out/SKILL.md" ]; then
+        first_line="$(${pkgs.coreutils}/bin/head -n 1 "$out/SKILL.md" || true)"
+        if [ "$first_line" != "---" ]; then
+          tmp="$out/SKILL.md.with-frontmatter"
+          {
+            echo "---"
+            echo "name: ${name}"
+            echo "description: Shared ${name} skill from the Claude Code skillpack."
+            echo "---"
+            echo
+            cat "$out/SKILL.md"
+          } > "$tmp"
+          mv "$tmp" "$out/SKILL.md"
         fi
+      fi
+    '';
 
-        if [ -f "$out/SKILL.md" ]; then
-          first_line="$(${pkgs.coreutils}/bin/head -n 1 "$out/SKILL.md" || true)"
-          if [ "$first_line" != "---" ]; then
-            tmp="$out/SKILL.md.with-frontmatter"
-            {
-              echo "---"
-              echo "name: ${name}"
-              echo "description: Shared ${name} skill from the Claude Code skillpack."
-              echo "---"
-              echo
-              cat "$out/SKILL.md"
-            } > "$tmp"
-            mv "$tmp" "$out/SKILL.md"
-          fi
-        fi
-      '';
-    }) sharedSkillNames
+  hostSkill =
+    name:
+    let
+      packaged = skills.packages.${skillSystem}.${name};
+      base = if skillHasPromptInclude name then expandSkill name else packaged;
+    in
+    if name == "impeccable" then bindImpeccable base else base;
+
+  hostAdaptedSkills = builtins.filter (
+    name: name == "impeccable" || skillHasPromptInclude name
+  ) enabledSkills;
+
+  hostSkillLinks = builtins.listToAttrs (
+    lib.concatMap (
+      name:
+      let
+        claude = hostSkill name;
+        portable = portableSkill name claude;
+      in
+      [
+        {
+          name = ".claude/skills/${name}";
+          value.source = lib.mkForce claude;
+        }
+        {
+          name = ".codex/skills/${name}";
+          value.source = lib.mkForce portable;
+        }
+        {
+          name = ".pi/agent/skills/${name}";
+          value.source = lib.mkForce portable;
+        }
+      ]
+    ) hostAdaptedSkills
   );
-
-  mkSkillAttrs =
-    baseDir: skillSources:
-    builtins.listToAttrs (
-      map (name: {
-        name = "${baseDir}/${name}";
-        value.source = skillSources.${name};
-      }) sharedSkillNames
-    );
 
   # LLM system-prompt wiring is intentionally DETACHED. The shared prompt
   # bodies (engineering, unix-principal, …) and the wrapper templates still
   # live under prompt/ as definitions, but are no longer projected into any
   # agent's always-on instruction file — each brain is emitted empty.
   # `instructionTemplate` stays in agentProfiles as the dormant re-attach point;
-  # restoring the old `expandTemplate` projection here re-wires it. Skills,
-  # MCP and settings are unaffected.
-  mkAgentAttrs =
-    {
-      instructionPath,
-      skillsPath,
-      skillsSourceMap,
-      ...
-    }:
-    { "${instructionPath}".text = ""; } // (mkSkillAttrs skillsPath skillsSourceMap);
+  # restoring the old `expandTemplate` projection here re-wires it. Skills
+  # come from the skills flake; MCP and settings are unaffected.
+  mkAgentAttrs = { instructionPath, ... }: { "${instructionPath}".text = ""; };
 
   agentProfiles = [
     {
       instructionPath = ".claude/CLAUDE.md";
       instructionTemplate = ../prompt/claude-code/claude.md;
-      skillsPath = ".claude/skills";
-      skillsSourceMap = expandedSkillSources;
     }
     {
       instructionPath = ".codex/AGENTS.md";
       instructionTemplate = ../prompt/codex/agent.md;
-      skillsPath = ".codex/skills";
-      skillsSourceMap = portableSkillSources;
     }
   ];
 
@@ -364,6 +385,12 @@ let
   );
 in
 {
+  imports = [ skills.homeManagerModules.default ];
+
+  # Every skill that was installed from prompt/skills. The list is explicit
+  # (lib/enabled-skills.nix); unknown names are rejected by the skills module.
+  skills.enable = enabledSkills;
+
   home.packages = [
     pkgs.llm-agents.claude-code # Claude Code CLI
   ];
@@ -405,7 +432,7 @@ in
     ".cursorrules".text = "";
   }
   // agentFiles
-  // (mkSkillAttrs ".pi/agent/skills" portableSkillSources);
+  // hostSkillLinks;
 
   # Claude Code user settings: non-destructive deep merge into the writable
   # ~/.claude/settings.json. Structural keys (claudeSettingsManaged) are
