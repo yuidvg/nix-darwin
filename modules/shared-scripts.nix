@@ -3,6 +3,7 @@
   config,
   pkgs,
   lib,
+  skills,
   ...
 }:
 let
@@ -269,9 +270,9 @@ let
     '';
   };
 
-  # Unpacks a Claude `.skill` archive into prompt/skills/<name>/.
-  # `.skill` is a transport format only: modules/claude-code.nix enumerates that
-  # tree with readDir and projects DIRECTORIES, so a zip left there is inert.
+  # Unpacks a Claude `.skill` archive into a checkout of github.com/yuidvg/skills.
+  # The skills flake picks up a new directory via readDir. This machine installs
+  # it only after the name is added to lib/enabled-skills.nix.
   skill-import = pkgs.writeShellApplication {
     name = "skill-import";
     runtimeInputs = with pkgs; [
@@ -338,8 +339,9 @@ in
   ];
 
   # prompt-review collector (nix-shell shebang, self-contained)
+  # Same file the prompt-review skill ships, taken from the packaged skill.
   home.file.".local/bin/prompt-review-collect" = {
-    source = ../prompt/skills/prompt-review/scripts/collect.py;
+    source = "${skills.packages.${pkgs.stdenv.hostPlatform.system}.prompt-review}/scripts/collect.py";
     executable = true;
   };
 

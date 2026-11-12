@@ -5,7 +5,8 @@ This repository is the shared Nix/Home Manager source for local agent tooling.
 ## Source Of Truth
 
 - Shared Claude Code and Codex files are generated from `modules/claude-code.nix`.
-- Agent prompts and skills live under `prompt/`.
+- Agent prompts live under `prompt/`.
+- Personal agent skills come from `github:yuidvg/skills`. `modules/claude-code.nix` imports that flake's Home Manager module and sets `skills.enable` from `lib/enabled-skills.nix`.
 - Shared CLI tools live under `scripts/` and are wired through `modules/shared-scripts.nix`.
 - Personal machine bindings belong in the downstream flake, not in this repository.
 

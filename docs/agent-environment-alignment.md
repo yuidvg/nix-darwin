@@ -10,8 +10,9 @@ The semantic contract belongs in Nix and prompt snippets. Concrete config files 
 
 ## Managed State
 
-- `modules/claude-code.nix` owns generated Claude Code and Codex instruction files.
-- `prompt/skills` is the shared skill source.
+- `modules/claude-code.nix` owns generated Claude Code and Codex instruction files, MCP, and the host skill adapters.
+- Personal skills come from `github:yuidvg/skills`. `skills.enable` is the explicit list in `lib/enabled-skills.nix`. Selected packages are linked into `~/.claude/skills`, `~/.codex/skills`, and `~/.pi/agent/skills`.
+- Host adapters stay in this repo: `@[...]` expansion against `prompt/*.md` when a skill's `SKILL.md` uses an include, the impeccable `IMPECCABLE_BIN` binding, XcodeBuildMCP, Claude Desktop skill ZIPs, and Claude managed settings.
 - Claude Code receives `~/.claude/settings.json`.
 - Codex receives stable defaults by merging a Nix-generated JSON document into `~/.codex/config.toml`.
 - Xcode Agent receives the same XcodeBuildMCP server definition with absolute Nix store paths.
