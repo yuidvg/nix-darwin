@@ -150,8 +150,11 @@ nix build .#darwinConfigurations."Yuis-MacBook-Pro".system
   skills / agents / commands / MCP / settings も無影響。
 - **skills**: `github:yuidvg/skills` を `skills.enable` で入れる。一覧は
   `lib/enabled-skills.nix`。`prompt/skills` は置かない。`@[…]` を `prompt/*.md`
-  から展開する処理、impeccable の `IMPECCABLE_BIN`、XcodeBuildMCP、Claude Desktop
-  用 ZIP、Claude の managed settings はこのリポジトリに残す。
+  から展開する処理、XcodeBuildMCP、Claude Desktop 用 ZIP、Claude の managed
+  settings はこのリポジトリに残す。impeccable の engine は skills flake の
+  `nix/impeccable-engine.nix` が同梱する。このリポジトリは `IMPECCABLE_BIN` を
+  束縛しない。Desktop ZIP (`packages/desktop-skills`) は
+  `${inputs.skills}/skills` の upstream portable launcher をこれまで通り包む。
 - **再接続**: `mkAgentAttrs` の `{ "${instructionPath}".text = ""; }` を元の
   `expandTemplate` 投影に戻せば再 wiring される (`instructionTemplate` は
   agentProfiles に dormant な再接続ポイントとして残してある)。Gemini / Cursor は

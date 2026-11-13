@@ -16,7 +16,6 @@ let
   skillRoot = "${skills}/skills";
 
   xcodebuildmcp = import ../packages/xcodebuildmcp { inherit pkgs; };
-  impeccable = import ../packages/impeccable { inherit pkgs; };
   cosenseMcpPackage = import ../packages/cosense-mcp-server { inherit pkgs; };
 
   cosenseSidSecret = "${config.home.homeDirectory}/.config/sops-nix/secrets/scrapbox_sid";
@@ -160,12 +159,13 @@ let
   xcodeAgentConfigDir = "Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig";
 
   # Host adapters layered on the skills flake. The flake links the packaged
-  # folder; these rewrites stay here because they bind this machine.
+  # folder. Impeccable's engine comes from the skills flake
+  # (`nix/impeccable-engine.nix`); this module does not bind IMPECCABLE_BIN,
+  # so that skill keeps the module's own links.
   #
   # `@[...]` includes resolve against prompt/*.md. No skill SKILL.md uses
   # them today, so that path does not replace the packaged link unless an
-  # include appears. The impeccable launcher is always rebound to the
-  # Nix-pinned engine.
+  # include appears.
   skillHasPromptInclude =
     name:
     let
@@ -179,16 +179,6 @@ let
       templateScope = ../prompt;
       src = skillRoot + "/${name}";
     };
-
-  bindImpeccable =
-    src:
-    pkgs.runCommand "impeccable-skill" { } ''
-      cp -R ${src} "$out"
-      chmod -R u+w "$out"
-      # Bind the launcher to the Nix-pinned engine, avoiding runtime downloads.
-      substituteInPlace "$out/scripts/impeccable" \
-        --replace-fail 'set -eu' "set -eu"$'\n'"IMPECCABLE_BIN=${impeccable}/bin/impeccable"
-    '';
 
   # Codex and Pi require SKILL.md with frontmatter. Used only after a host
   # rewrite; the skills module already does this for packaged folders.
@@ -223,13 +213,10 @@ let
     name:
     let
       packaged = skills.packages.${skillSystem}.${name};
-      base = if skillHasPromptInclude name then expandSkill name else packaged;
     in
-    if name == "impeccable" then bindImpeccable base else base;
+    if skillHasPromptInclude name then expandSkill name else packaged;
 
-  hostAdaptedSkills = builtins.filter (
-    name: name == "impeccable" || skillHasPromptInclude name
-  ) enabledSkills;
+  hostAdaptedSkills = builtins.filter skillHasPromptInclude enabledSkills;
 
   hostSkillLinks = builtins.listToAttrs (
     lib.concatMap (
