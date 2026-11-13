@@ -223,7 +223,6 @@ in
   # Personal packages
   home.packages =
     (with pkgs; [
-      hidden-bar
       utm
       transmission_4
       zed-editor

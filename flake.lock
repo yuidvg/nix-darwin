@@ -280,11 +280,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790844219,
-        "narHash": "sha256-92yLEnRjwaCoIYUTfGkazElnFHzSLc11AgxFouGAi7g=",
+        "lastModified": 1793529916,
+        "narHash": "sha256-pYwf9u7zWyFKaZV803Qr1VKxC3o4fWrxqXfdGoVU6m8=",
         "ref": "refs/heads/master",
-        "rev": "e0d6acfd73dbc6c33ba5329315d0c661a15d6ea0",
-        "revCount": 6,
+        "rev": "edcc9739b93ec5987164fc8bd7f4520c79212ada",
+        "revCount": 11,
         "type": "git",
         "url": "file:///Users/yui/Developer/diverge/deleted"
       },
@@ -758,18 +758,14 @@
         "nixpkgs": "nixpkgs_10"
       },
       "locked": {
-        "lastModified": 1793584138,
-        "narHash": "sha256-fdQHN/lWUR5w2SFEXae9XWmSDLJHA7IVTqTbz+gLl/Q=",
-        "owner": "yuidvg",
-        "repo": "wifi_monitor",
-        "rev": "43faf43381f1e88a1bc0b5f95eb5420c80927eaf",
-        "type": "github"
+        "lastModified": 1793935184,
+        "narHash": "sha256-DHrxTBbUSTb2TpMtu53oHmGi7+CqH4YtEX7U7iRJ4es=",
+        "path": "/Users/yui/Developer/diverge/wifi_monitor",
+        "type": "path"
       },
       "original": {
-        "owner": "yuidvg",
-        "ref": "main",
-        "repo": "wifi_monitor",
-        "type": "github"
+        "path": "/Users/yui/Developer/diverge/wifi_monitor",
+        "type": "path"
       }
     }
   },
