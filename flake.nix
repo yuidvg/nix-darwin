@@ -31,7 +31,8 @@
     mirror.url = "git+file:///Users/yui/Developer/diverge/deleted";
     mirror.inputs.nixpkgs.follows = "nixpkgs";
 
-    wifi-monitor.url = "path:/Users/yui/Developer/diverge/wifi_monitor";
+    wifi-monitor.url = "github:yuidvg/wifi_monitor/86faccd6cab699be754d42772e1289e566daa40e";
+    wifi-monitor.inputs.nixpkgs.follows = "nixpkgs";
 
     # Personal agent skills. Pinned to the commit that ships the impeccable
     # engine (`nix/impeccable-engine.nix`). The skills flake keeps its own
