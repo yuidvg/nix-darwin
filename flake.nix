@@ -33,10 +33,11 @@
 
     wifi-monitor.url = "github:yuidvg/wifi_monitor/main";
 
-    # Personal agent skills. Pinned to the extraction merge. The skills flake
-    # keeps its own nixpkgs (nixos-26.05) so x86_64-darwin still evaluates;
-    # do not follow this flake's nixpkgs.
-    skills.url = "github:yuidvg/skills/7abaa12c96aacfcf130142fb1c3194256237c693";
+    # Personal agent skills. Pinned to the commit that ships the impeccable
+    # engine (`nix/impeccable-engine.nix`). The skills flake keeps its own
+    # nixpkgs (nixos-26.05) so x86_64-darwin still evaluates; do not follow
+    # this flake's nixpkgs.
+    skills.url = "github:yuidvg/skills/31500f5ac976c159cec5dc6f3d2a9391e9e76a0d";
 
     # InVPN keeps its qualified Python/sing-box versions in the product flake.
     invpn.url = "github:yuidvg/in-vpn/v0.1.0";
