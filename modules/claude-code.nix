@@ -92,6 +92,121 @@ let
     env = { };
   };
 
+  # apple-mcp is invoked through bunx and resolves "latest" at runtime.
+  appleMcpServer = {
+    command = "${pkgs.bun}/bin/bunx";
+    args = [
+      "--no-cache"
+      "apple-mcp@latest"
+    ];
+  };
+
+  timescrollMcpServer = {
+    command = "/Applications/TimeScroll.app/Contents/Helpers/timescroll-mcp.app/Contents/MacOS/timescroll-mcp";
+  };
+
+  # Codex-local Beeper MCP on the LAN. No credentials live in this definition.
+  beeperMcpServer = {
+    url = "http://192.168.10.5:23373/v0/mcp";
+  };
+
+  # One spec, projected only onto the clients that already had that server.
+  # Codex node_repl is intentionally absent: ChatGPT.app rewrites it.
+  # Omitting a name stops managing it and leaves the live entry in place.
+  # Putting the name in a target's remove list deletes it.
+  mcpServerSpecs = {
+    XcodeBuildMCP = xcodeBuildMcpServer;
+    freee = freeeMcpServer;
+    cosense = cosenseMcpServer;
+    apple-mcp = appleMcpServer;
+    timescroll = timescrollMcpServer;
+    beeper = beeperMcpServer;
+  };
+
+  mcpTargets = {
+    "claude-code" = [
+      "XcodeBuildMCP"
+      "freee"
+      "cosense"
+    ];
+    "claude-code-project" = [ "timescroll" ];
+    "claude-desktop" = [ "apple-mcp" ];
+    codex = [
+      "XcodeBuildMCP"
+      "freee"
+      "cosense"
+      "apple-mcp"
+      "timescroll"
+      "beeper"
+    ];
+    "xcode-agent" = [ "XcodeBuildMCP" ];
+  };
+
+  mcpRemove = {
+    "claude-code" = [ ];
+    "claude-code-project" = [ ];
+    "claude-desktop" = [ ];
+    codex = [ ];
+    "xcode-agent" = [ ];
+  };
+
+  normalizeMcp =
+    spec:
+    if spec ? url then
+      { inherit (spec) url; }
+    else
+      {
+        command = spec.command;
+        args = spec.args or [ ];
+        env = spec.env or { };
+      };
+
+  serversFor =
+    target:
+    lib.listToAttrs (
+      map (name: {
+        inherit name;
+        value = normalizeMcp mcpServerSpecs.${name};
+      }) mcpTargets.${target}
+    );
+
+  mcpProjectionPlan = pkgs.writeText "mcp-projection.json" (
+    builtins.toJSON {
+      json = [
+        {
+          path = ".claude.json";
+          pointer = [ "mcpServers" ];
+          servers = serversFor "claude-code";
+          remove = mcpRemove."claude-code";
+        }
+        {
+          path = ".claude.json";
+          pointer = [
+            "projects"
+            config.home.homeDirectory
+            "mcpServers"
+          ];
+          servers = serversFor "claude-code-project";
+          remove = mcpRemove."claude-code-project";
+        }
+        {
+          path = "Library/Application Support/Claude/claude_desktop_config.json";
+          pointer = [ "mcpServers" ];
+          servers = serversFor "claude-desktop";
+          remove = mcpRemove."claude-desktop";
+        }
+      ];
+      toml = [
+        {
+          path = ".codex/config.toml";
+          table = [ "mcp_servers" ];
+          servers = serversFor "codex";
+          remove = mcpRemove.codex;
+        }
+      ];
+    }
+  );
+
   sharedAgentEnvNames = [
     "GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"
     "SCRAPBOX_SID"
@@ -300,12 +415,6 @@ let
       };
     };
 
-    mcp_servers = {
-      XcodeBuildMCP = xcodeBuildMcpServer;
-      freee = freeeMcpServer;
-      cosense = cosenseMcpServer;
-    };
-
     plugins = {
       "computer-use@openai-bundled" = {
         enabled = false;
@@ -399,17 +508,14 @@ in
       executable = true;
     };
 
-    # MCP servers: ~/.claude.json is writable by Claude Code at runtime
-    # (startup counts, tips history, caches, etc.) so we cannot manage it
-    # as a read-only symlink. Instead, merge mcpServers via activation script.
+    # MCP client files stay writable. Activation upserts the owned names.
+    # See mcpProjection below. A symlink would freeze the UI.
 
-    # Xcode Agent MCP config (absolute Nix store paths required)
+    # Xcode Agent MCP config (absolute Nix store paths required).
+    # This file is the whole MCP document, so it is a managed symlink.
     # Xcode Agent ignores ~/.claude.json and ~/.claude/settings.json.
-    # ~/.claude/CLAUDE.md IS read by Xcode Agent — no duplication needed.
     "${xcodeAgentConfigDir}/.claude".text = builtins.toJSON {
-      mcpServers = {
-        XcodeBuildMCP = xcodeBuildMcpServer;
-      };
+      mcpServers = serversFor "xcode-agent";
     };
 
     # Claude Desktop: skill ZIPs for upload (⌘⇧G → ~/.claude/desktop-skills)
@@ -442,31 +548,18 @@ in
     fi
   '';
 
-  home.activation.claudeMcpServers = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    # Idempotent: replaces .mcpServers entirely (not deep-merge) so removals
-    # from Nix propagate correctly. All other keys are preserved.
-    CLAUDE_JSON="$HOME/.claude.json"
-    MCP='${
-      builtins.toJSON {
-        XcodeBuildMCP = xcodeBuildMcpServer;
-        freee = freeeMcpServer;
-        cosense = cosenseMcpServer;
-      }
-    }'
-
-    if [ -f "$CLAUDE_JSON" ]; then
-      ${pkgs.jq}/bin/jq --argjson mcp "$MCP" '.mcpServers = $mcp' "$CLAUDE_JSON" \
-        > "$CLAUDE_JSON.tmp" && mv "$CLAUDE_JSON.tmp" "$CLAUDE_JSON"
-    else
-      ${pkgs.jq}/bin/jq -n --argjson mcp "$MCP" '{ mcpServers: $mcp }' \
-        > "$CLAUDE_JSON"
-    fi
-  '';
-
   home.activation.codexDefaults = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     CODEX_CONFIG="$HOME/.codex/config.toml"
     mkdir -p "$HOME/.codex"
     ${codexConfigPython}/bin/python ${codexConfigMergeScript} ${codexManagedConfigFile} "$CODEX_CONFIG"
+  '';
+
+  # Upsert owned MCP servers into the writable client files. Runs after
+  # codexDefaults so the generic TOML merge does not own mcp_servers.
+  home.activation.mcpProjection = lib.hm.dag.entryAfter [ "writeBoundary" "codexDefaults" ] ''
+    ${codexConfigPython}/bin/python ${../scripts/reconcile-mcp.py} \
+      --home "$HOME" \
+      ${mcpProjectionPlan}
   '';
 
   home.activation.xcodeAgentSymlinks = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

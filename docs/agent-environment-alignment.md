@@ -4,16 +4,16 @@
 
 The agent environment is a projection pipeline:
 
-`Nix attrsets -> Claude JSON / Codex TOML / Xcode Agent JSON`
+`Nix attrsets -> Claude Code JSON / Claude Desktop JSON / Codex TOML / Xcode Agent JSON`
 
 The semantic contract belongs in Nix and prompt snippets. Concrete config files are adapters.
 
 ## Managed State
 
-- `modules/claude-code.nix` owns generated Claude Code and Codex instruction files, MCP, and the host skill adapters.
+- `modules/claude-code.nix` owns generated Claude Code and Codex instruction files, the MCP catalog, and the host skill adapters. Activation upserts owned servers into `~/.claude.json` (user servers, plus TimeScroll on the home-directory project), Claude Desktop's `claude_desktop_config.json`, and `~/.codex/config.toml`. Names the catalog does not own stay in place. Codex `node_repl` is one of those: ChatGPT.app rewrites it. Xcode Agent still receives only XcodeBuildMCP, as a managed document.
 - Personal skills come from `github:yuidvg/skills`. `skills.enable` is the explicit list in `lib/enabled-skills.nix`. Selected packages are linked into `~/.claude/skills`, `~/.codex/skills`, and `~/.pi/agent/skills`.
 - The impeccable engine comes from `github:yuidvg/skills` `nix/impeccable-engine.nix`. The skills Home Manager module links that package for Claude and a portable copy (with the binary) for Codex and Pi. This repo does not bind `IMPECCABLE_BIN`. Desktop ZIPs still package the upstream portable launcher from the skills source tree.
-- Host adapters stay in this repo: `@[...]` expansion against `prompt/*.md` when a skill's `SKILL.md` uses an include, XcodeBuildMCP, Claude Desktop skill ZIPs, and Claude managed settings.
+- Host adapters stay in this repo: `@[...]` expansion against `prompt/*.md` when a skill's `SKILL.md` uses an include, the MCP catalog and its client projection, Claude Desktop skill ZIPs, and Claude managed settings.
 - Claude Code receives `~/.claude/settings.json`.
 - Codex receives stable defaults by merging a Nix-generated JSON document into `~/.codex/config.toml`.
 - Xcode Agent receives the same XcodeBuildMCP server definition with absolute Nix store paths.
