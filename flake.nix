@@ -146,6 +146,32 @@
             program = "${self'.packages.zip-skills}/bin/zip-skills";
           };
 
+          # lib/desktop-skills.nix → the Claude Desktop account.
+          # Usage: nix run .#sync-desktop-skills            (plan, offline)
+          #        nix run .#sync-desktop-skills -- apply   (upload via Safari)
+          packages.sync-desktop-skills = import ./packages/desktop-skill-sync {
+            inherit pkgs;
+            skillZips = import ./packages/desktop-skills {
+              inherit pkgs;
+              skillsDir = "${inputs.skills}/skills";
+              skillNames =
+                let
+                  enabled = import ./lib/enabled-skills.nix;
+                  desktop = import ./lib/desktop-skills.nix;
+                  unknown = pkgs.lib.subtractLists enabled desktop;
+                in
+                if unknown == [ ] then
+                  desktop
+                else
+                  builtins.throw "lib/desktop-skills.nix: not in lib/enabled-skills.nix: ${toString unknown}";
+            };
+          };
+
+          apps.sync-desktop-skills = {
+            type = "app";
+            program = "${self'.packages.sync-desktop-skills}/bin/sync-desktop-skills";
+          };
+
           # Formatter for the flake itself
           formatter = pkgs.nixfmt;
         };

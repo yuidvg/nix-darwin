@@ -2,4 +2,10 @@
 set -euo pipefail
 # Single repo (no upstream): rebuild this machine from the local flake.
 cd "$(dirname "$0")"
-exec sudo darwin-rebuild switch --flake ".#Yuis-MacBook-Pro"
+sudo darwin-rebuild switch --flake ".#Yuis-MacBook-Pro"
+
+# Then bring the Claude Desktop account's skills in line with
+# lib/desktop-skills.nix. Headless, and best-effort: the switch has already
+# succeeded, so a missing sign-in or a claude.ai change only prints a note.
+nix run ".#sync-desktop-skills" -- apply ||
+  echo "apply: Desktop skill sync did not finish (exit $?); the switch itself succeeded." >&2

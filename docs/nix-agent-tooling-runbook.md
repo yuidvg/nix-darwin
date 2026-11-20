@@ -56,6 +56,23 @@ Confirm the ZIP exists when relevant:
 ls -1 "$(nix build .#desktop-skills --no-link --print-out-paths)" | rg '^<skill>\.zip$'
 ```
 
+## Claude Desktop Account Skills
+
+Claude Desktop's Chat and Cowork read skills stored on the claude.ai account, not `~/.claude/skills`. `lib/desktop-skills.nix` is the subset to keep there; `sync-desktop-skills` reconciles the account against it.
+
+```bash
+nix run .#sync-desktop-skills            # plan: offline, against Desktop's local copy
+nix run .#sync-desktop-skills -- apply   # upload what the plan lists
+```
+
+- `./apply` runs `apply` after a successful switch. It is best-effort: a failed sync prints a note and does not fail the switch.
+- `apply` sends operations to Safari as Apple Events and runs them in a claude.ai tab of your own Safari. It uses a tab that is already open or opens one in the background (and closes the one it opened), so it takes no focus. When `~/.local/state/desktop-skill-sync/state.json` says every skill is already synced, it does not touch Safari.
+- One-time setup, both yours to grant: Safari › Settings › Developer › "Allow JavaScript from Apple Events" (turn on "Show features for web developers" under Advanced first), and the macOS prompt letting the terminal control Safari.
+- The uploads depend on a signed-in tab. When Safari has no claude.ai session, `apply` brings that tab forward, waits for the sign-in (10 minutes by default, `--login-timeout`), and carries on. There is no separate login step.
+- Uploads go through that tab's session, using the same unofficial `skills/upload-skill` endpoint the Desktop app calls; expect to fix `packages/desktop-skill-sync/sync.py` if claude.ai changes it.
+- It is safe to re-run. State is written after each verified upload, and a second concurrent run exits.
+- It never deletes account skills. A skill it did not upload, or one edited on the account since the last sync, is reported as `unmanaged` or `conflict` and left alone until you pass `--adopt <name>` (or `--adopt all`).
+
 ## Downstream Refresh
 
 When `/etc/nix-darwin` imports this repo by `path:`, refresh only that lock input before expecting the active system to see local source changes:

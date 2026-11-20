@@ -107,11 +107,13 @@ pkgs.runCommand "desktop-skills"
           ${
             if !hasFM then
               ''
-                # Inject YAML frontmatter
+                # Inject YAML frontmatter. The name is the directory name:
+                # account skill names are lowercase-hyphen identifiers, and
+                # sync-desktop-skills matches the account by this name.
                 tmp=$(mktemp)
                 {
                   echo "---"
-                  echo 'name: "${meta.name}"'
+                  echo 'name: "${name}"'
                   echo 'description: "${meta.desc}"'
                   echo "---"
                   echo ""
