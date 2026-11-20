@@ -9,9 +9,9 @@
 [
   "carnegie-influence"
   "concern-extraction"
+  "cosense"
   "frontend-design"
   "impeccable"
   "purchase-research"
-  "save-to-scrapbox"
   "yomiyasu"
 ]

@@ -16,21 +16,12 @@ let
         exec ${pkgs.python3}/bin/python3 ${../scripts/gws-isolated.py} ${isolatedGws}/bin/gws ${lib.escapeShellArg "${config.home.homeDirectory}/.config/gws-${name}"} "$@"
       '';
     };
-  cosenseCliPackage = import ../packages/cosense-cli { inherit pkgs; };
-  cosensePatSecret =
-    config.sops.secrets.cosense_pat.path
-      or "${config.home.homeDirectory}/.config/sops-nix/secrets/cosense_pat";
-
-  # Agents may launch this command without the interactive shell's environment.
-  # Load the managed token at runtime, preserving an explicit COSENSE_PAT.
-  cosense = pkgs.writeShellScriptBin "cosense" ''
-    set -eu
-    if [ -z "''${COSENSE_PAT:-}" ] && [ -r "${cosensePatSecret}" ]; then
-      COSENSE_PAT="$(${pkgs.coreutils}/bin/tr -d '\r\n' < "${cosensePatSecret}")"
-      export COSENSE_PAT
-    fi
-    exec ${cosenseCliPackage}/bin/cosense "$@"
-  '';
+  cosense = import ../packages/cosense {
+    inherit pkgs;
+    patFile =
+      config.sops.secrets.cosense_pat.path
+        or "${config.home.homeDirectory}/.config/sops-nix/secrets/cosense_pat";
+  };
 
   mirror-vpn-import = pkgs.writeShellApplication {
     name = "mirror-vpn-import";
@@ -285,23 +276,6 @@ let
     ];
     text = builtins.readFile ../scripts/skill-import.sh;
   };
-
-  # ── Scrapbox writer ─────────────────────────────────────
-  # @cosense/std is not in nixpkgs, so we use a managed node_modules
-  # directory under ~/.local/share/scrapbox-write/ with activation-time
-  # npm install. The wrapper injects NODE_PATH for hermetic resolution.
-  # ESM ignores NODE_PATH, so we cd into the directory where node_modules lives.
-  # The mjs file is a Nix symlink in the same dir, and node resolves imports
-  # relative to the realpath of the script, so we copy it to a temp location
-  # alongside node_modules to ensure correct resolution.
-  scrapbox-write = pkgs.writeScriptBin "scrapbox-write" ''
-    #!${pkgs.bash}/bin/bash
-    SBDIR="$HOME/.local/share/scrapbox-write"
-    # Ensure a writable copy of the script exists next to node_modules
-    # (Nix symlinks into the store break ESM resolution)
-    cp -Lf "$SBDIR/scrapbox-write.mjs" "$SBDIR/_run.mjs" 2>/dev/null || true
-    exec ${pkgs.nodejs}/bin/node "$SBDIR/_run.mjs" "$@"
-  '';
 in
 {
   imports = [ ./wifi-monitor.nix ];
@@ -328,9 +302,7 @@ in
     skill-import
     mirror-vpn-import
 
-    # Scrapbox writer
-    scrapbox-write
-    (import ../packages/scrapbox-cli { inherit pkgs; })
+    # Cosense
     cosense
 
     # CLI tools used by scripts
@@ -344,25 +316,4 @@ in
     source = "${skills.packages.${pkgs.stdenv.hostPlatform.system}.prompt-review}/scripts/collect.py";
     executable = true;
   };
-
-  # Deploy scrapbox-write.mjs to ~/.local/share/scrapbox-write/
-  home.file.".local/share/scrapbox-write/scrapbox-write.mjs".source = ../scripts/scrapbox-write.mjs;
-  home.file.".local/share/scrapbox-write/package.json".text = builtins.toJSON {
-    name = "scrapbox-write";
-    version = "1.0.0";
-    type = "module";
-    dependencies = {
-      "@cosense/std" = "^0.31.0";
-    };
-  };
-
-  # Activation: npm install @cosense/std if node_modules is missing or stale
-  home.activation.scrapboxWriteNpmInstall = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    SBDIR="$HOME/.local/share/scrapbox-write"
-    if [ ! -d "$SBDIR/node_modules/@cosense/std" ]; then
-      ${pkgs.nodejs}/bin/npm install --prefix "$SBDIR" --no-audit --no-fund 2>/dev/null \
-        && echo "scrapbox-write: npm install complete" \
-        || echo "scrapbox-write: npm install failed (will retry next switch)" >&2
-    fi
-  '';
 }

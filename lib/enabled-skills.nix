@@ -25,7 +25,6 @@
   "omi-protocol"
   "polysemy"
   "purchase-research"
-  "save-to-scrapbox"
   "servant"
   "tech-stack-migration"
   "terraform"

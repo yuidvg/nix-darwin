@@ -8,8 +8,6 @@
 }:
 let
   gitPromptScript = ../scripts/git-prompt.sh;
-  scrapboxSidSecret = "${config.home.homeDirectory}/.config/sops-nix/secrets/scrapbox_sid";
-  cosenseProjectName = "diverge-internal";
 in
 {
   home.packages = with pkgs; [
@@ -94,16 +92,6 @@ in
             # Source git prompt script
             source ${gitPromptScript}
             GIT_PS1_SHOWUPSTREAM="verbose"
-            if [[ -f ${scrapboxSidSecret} ]]; then
-              SCRAPBOX_SID="$(tr -d '\r\n' < ${scrapboxSidSecret})"
-              export SCRAPBOX_SID
-              if [ -z "''${COSENSE_SID-}" ]; then
-                COSENSE_SID="$SCRAPBOX_SID"
-                export COSENSE_SID
-              fi
-            fi
-            : "''${COSENSE_PROJECT_NAME:=${cosenseProjectName}}"
-            export COSENSE_PROJECT_NAME
             precmd () { __git_ps1 "%F{cyan}%~%f%F{blue}" "%s %f" }
           '';
         in
@@ -118,18 +106,6 @@ in
     # Anyone who launches fish interactively gets Nix env vars automatically.
     fish = {
       enable = true;
-      interactiveShellInit = ''
-        if test -f ${scrapboxSidSecret}
-          set -x SCRAPBOX_SID (string trim (cat ${scrapboxSidSecret}))
-          if test -z "$COSENSE_SID"
-            set -x COSENSE_SID "$SCRAPBOX_SID"
-          end
-        end
-
-        if test -z "$COSENSE_PROJECT_NAME"
-          set -x COSENSE_PROJECT_NAME ${cosenseProjectName}
-        end
-      '';
     };
 
     direnv = {

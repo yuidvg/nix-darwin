@@ -16,39 +16,23 @@ let
   skillRoot = "${skills}/skills";
 
   xcodebuildmcp = import ../packages/xcodebuildmcp { inherit pkgs; };
-  cosenseMcpPackage = import ../packages/cosense-mcp-server { inherit pkgs; };
-
-  cosenseSidSecret = "${config.home.homeDirectory}/.config/sops-nix/secrets/scrapbox_sid";
-  cosenseProjectName = "diverge-internal";
-
-  # Cosense MCP is wrapped so auth is read from managed secret and the project
-  # name is a public constant unless explicitly overridden at runtime.
-  cosenseMcpServerCommand = pkgs.writeShellScript "cosense-mcp-server" ''
-    #!/usr/bin/env sh
-    set -eu
-
-    if [ -z "''${COSENSE_SID:-}" ] && [ -r "${cosenseSidSecret}" ]; then
-      COSENSE_SID="$(tr -d '\r\n' < "${cosenseSidSecret}")"
-      export COSENSE_SID
-    fi
-
-    if [ -z "''${COSENSE_PROJECT_NAME:-}" ] && [ -n "''${SCRAPBOX_PROJECT_NAME:-}" ]; then
-      export COSENSE_PROJECT_NAME="$SCRAPBOX_PROJECT_NAME"
-    fi
-
-    : "''${COSENSE_PROJECT_NAME:=${cosenseProjectName}}"
-    export COSENSE_PROJECT_NAME
-
-    if [ -z "''${COSENSE_PROJECT_NAME:-}" ]; then
-      >&2 printf 'cosense-mcp-server: COSENSE_PROJECT_NAME is not set\n'
-    fi
-
-    if [ -z "''${COSENSE_SID:-}" ]; then
-      >&2 printf 'cosense-mcp-server: COSENSE_SID is not set\n'
-    fi
-
-    exec ${cosenseMcpPackage}/bin/cosense-mcp-server "$@"
-  '';
+  # Claude Desktop chat has no shell; this MCP passes argv straight to local
+  # CLIs (cosense, gws, freee-call, ...). Claude Code and Codex run them directly.
+  cliMcpServerCommand = import ../packages/cli-mcp {
+    inherit pkgs;
+    path = [
+      "/etc/profiles/per-user/${config.home.username}/bin"
+      "${config.home.homeDirectory}/.nix-profile/bin"
+      "/run/current-system/sw/bin"
+      "/nix/var/nix/profiles/default/bin"
+      "/usr/local/bin"
+      "/opt/homebrew/bin"
+      "/usr/bin"
+      "/bin"
+      "/usr/sbin"
+      "/sbin"
+    ];
+  };
 
   # Claude Desktop uploadable skill ZIPs
   desktopSkills = import ../packages/desktop-skills {
@@ -86,8 +70,8 @@ let
     ];
   };
 
-  cosenseMcpServer = {
-    command = cosenseMcpServerCommand;
+  cliMcpServer = {
+    command = cliMcpServerCommand;
     args = [ ];
     env = { };
   };
@@ -117,7 +101,7 @@ let
   mcpServerSpecs = {
     XcodeBuildMCP = xcodeBuildMcpServer;
     freee = freeeMcpServer;
-    cosense = cosenseMcpServer;
+    cli = cliMcpServer;
     apple-mcp = appleMcpServer;
     timescroll = timescrollMcpServer;
     beeper = beeperMcpServer;
@@ -127,14 +111,15 @@ let
     "claude-code" = [
       "XcodeBuildMCP"
       "freee"
-      "cosense"
     ];
     "claude-code-project" = [ "timescroll" ];
-    "claude-desktop" = [ "apple-mcp" ];
+    "claude-desktop" = [
+      "apple-mcp"
+      "cli"
+    ];
     codex = [
       "XcodeBuildMCP"
       "freee"
-      "cosense"
       "apple-mcp"
       "timescroll"
       "beeper"
@@ -143,10 +128,10 @@ let
   };
 
   mcpRemove = {
-    "claude-code" = [ ];
+    "claude-code" = [ "cosense" ];
     "claude-code-project" = [ ];
     "claude-desktop" = [ ];
-    codex = [ ];
+    codex = [ "cosense" ];
     "xcode-agent" = [ ];
   };
 
@@ -209,9 +194,6 @@ let
 
   sharedAgentEnvNames = [
     "GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND"
-    "SCRAPBOX_SID"
-    "COSENSE_SID"
-    "COSENSE_PROJECT_NAME"
     "SOPS_AGE_KEY_FILE"
   ];
 

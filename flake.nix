@@ -101,13 +101,8 @@
           # XcodeBuildMCP: hermetic MCP server (no npx)
           packages.xcodebuildmcp = import ./packages/xcodebuildmcp { inherit pkgs; };
 
-          # Cosense MCP server (hermetic, npm dependencies pinned by lockfile).
-          packages.cosense-mcp-server = import ./packages/cosense-mcp-server { inherit pkgs; };
-
           # CodeLayer: AI coding agent (macOS .app + CLI)
           packages.codelayer = import ./packages/codelayer { inherit pkgs; };
-
-          packages.scrapbox-cli = import ./packages/scrapbox-cli { inherit pkgs; };
 
           packages.cosense-cli = import ./packages/cosense-cli { inherit pkgs; };
 
@@ -340,9 +335,6 @@
                 sops = lib.mkIf (secretsFile != null) {
                   age.keyFile = "${config.home.homeDirectory}/.config/sops/age/keys.txt";
                   defaultSopsFile = secretsFile;
-                  secrets.scrapbox_sid = {
-                    mode = "0600";
-                  };
                 };
 
                 launchd.agents.sops-nix.config.EnvironmentVariables.PATH = lib.mkIf (secretsFile != null) (
