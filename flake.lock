@@ -561,17 +561,17 @@
         "nixpkgs": "nixpkgs_9"
       },
       "locked": {
-        "lastModified": 1794552424,
-        "narHash": "sha256-OeQM8Y1MxpUjgei3PHUikPg/1eLnqVPGXd2xz+8r01g=",
+        "lastModified": 1795173148,
+        "narHash": "sha256-T6SCs77JxJHa2SW21ymuTwdq/7UKgeF9y9tC+6dsUqk=",
         "owner": "yuidvg",
         "repo": "skills",
-        "rev": "31500f5ac976c159cec5dc6f3d2a9391e9e76a0d",
+        "rev": "7b0bf2a9bf7132ec4e3523ad2084a81b3f79359a",
         "type": "github"
       },
       "original": {
         "owner": "yuidvg",
         "repo": "skills",
-        "rev": "31500f5ac976c159cec5dc6f3d2a9391e9e76a0d",
+        "rev": "7b0bf2a9bf7132ec4e3523ad2084a81b3f79359a",
         "type": "github"
       }
     },

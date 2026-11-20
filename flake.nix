@@ -34,11 +34,12 @@
     wifi-monitor.url = "github:yuidvg/wifi_monitor/86faccd6cab699be754d42772e1289e566daa40e";
     wifi-monitor.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Personal agent skills. Pinned to the commit that ships the impeccable
-    # engine (`nix/impeccable-engine.nix`). The skills flake keeps its own
-    # nixpkgs (nixos-26.05) so x86_64-darwin still evaluates; do not follow
-    # this flake's nixpkgs.
-    skills.url = "github:yuidvg/skills/31500f5ac976c159cec5dc6f3d2a9391e9e76a0d";
+    # Personal agent skills. Pinned to a commit that ships the impeccable
+    # engine (`nix/impeccable-engine.nix`) and the purchase-research channel
+    # notes checked on 2026-11-20. The skills flake keeps its own nixpkgs
+    # (nixos-26.05) so x86_64-darwin still evaluates; do not follow this
+    # flake's nixpkgs.
+    skills.url = "github:yuidvg/skills/7b0bf2a9bf7132ec4e3523ad2084a81b3f79359a";
 
     # InVPN keeps its qualified Python/sing-box versions in the product flake.
     invpn.url = "github:yuidvg/in-vpn/v0.1.0";
