@@ -154,16 +154,7 @@
             skillZips = import ./packages/desktop-skills {
               inherit pkgs;
               skillsDir = "${inputs.skills}/skills";
-              skillNames =
-                let
-                  enabled = import ./lib/enabled-skills.nix;
-                  desktop = import ./lib/desktop-skills.nix;
-                  unknown = pkgs.lib.subtractLists enabled desktop;
-                in
-                if unknown == [ ] then
-                  desktop
-                else
-                  builtins.throw "lib/desktop-skills.nix: not in lib/enabled-skills.nix: ${toString unknown}";
+              skillNames = import ./lib/desktop-skills.nix;
             };
           };
 

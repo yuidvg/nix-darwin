@@ -125,8 +125,11 @@ pkgs.runCommand "desktop-skills"
               ""
           }
 
-          # Create ZIP: <name>.zip containing <name>/Skill.md + resources
-          (cd work && zip -r "$out/${name}.zip" "${name}")
+          # Create ZIP: <name>.zip containing <name>/Skill.md + resources.
+          # Fixed timestamps, sorted entries and no extra fields keep the
+          # bytes stable across rebuilds; sync-desktop-skills compares by hash.
+          find work/${name} -exec touch -h -d '1980-01-01T00:00:00Z' {} +
+          (cd work && find "${name}" | LC_ALL=C sort | TZ=UTC zip -X -q "$out/${name}.zip" -@)
         '';
     in
     ''

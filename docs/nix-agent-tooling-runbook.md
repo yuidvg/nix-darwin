@@ -58,7 +58,7 @@ ls -1 "$(nix build .#desktop-skills --no-link --print-out-paths)" | rg '^<skill>
 
 ## Claude Desktop Account Skills
 
-Claude Desktop's Chat and Cowork read skills stored on the claude.ai account, not `~/.claude/skills`. `lib/desktop-skills.nix` is the subset to keep there; `sync-desktop-skills` reconciles the account against it.
+Claude Desktop's Chat and Cowork read skills stored on the claude.ai account, not `~/.claude/skills`. `lib/desktop-skills.nix` lists the skills to keep there, independently of `lib/enabled-skills.nix`; `sync-desktop-skills` reconciles the account against it.
 
 ```bash
 nix run .#sync-desktop-skills            # plan: offline, against Desktop's local copy
